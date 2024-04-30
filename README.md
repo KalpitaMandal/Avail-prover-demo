@@ -16,7 +16,8 @@ To start the prover, use `cargo run`
 
 ## Api calls for the prover
 
-### Test
+### 1. Fetch program 
+
 ```cmd
 curl --location --request GET 'http://localhost:3030/welcome'
 ```
@@ -32,7 +33,7 @@ Fetches the `credits.aleo` program from the aleo networks and prints out the pro
 }
 ```
 
-### Execute offline [Simple hello.aleo program]
+### 2. Execute offline [Simple hello.aleo program]
 ```cmd
 curl --location --request POST 'http://localhost:3030/executeOffline' \
 --header 'Content-Type: application/json' \
@@ -82,7 +83,7 @@ Number of non-zero entries in B: 44744
 Number of non-zero entries in C: 16677
 ```
 
-### Execute [transfer_public function, credits.aleo program]
+### 3. Execute [transfer_public function, credits.aleo program]
 ```cmd
 curl --location --request POST 'http://localhost:3030/execute' \
 --header 'Content-Type: application/json' \
