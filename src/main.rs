@@ -1,9 +1,8 @@
 use actix_web::{get, post, web, App, HttpResponse, HttpServer};
-use std::{fs, str::FromStr, time::Instant};
+use std::{fs, time::Instant};
 use aleo_rust::{
     AleoAPIClient,
-    snarkvm_types::Testnet3,
-    ProvingKey
+    snarkvm_types::Testnet3
   };
 use serde_json::{Error, json};
 
@@ -129,17 +128,15 @@ async fn execute_offline(
 
 #[get("/prove")]
 async fn prove_transition() -> Result<HttpResponse, helpers::error::InputError> {
-    let proving_key_path = "../keys/transfer_public.prover".to_string();
-    let alt_proving_key_path = "./keys/transfer_public.prover".to_string();
-    let file_content =
-        fs::read(&proving_key_path).or_else(|_| fs::read(&alt_proving_key_path));
-    match file_content {
-        Ok(key) => {
-            let key_string = String::from_utf8(key).unwrap();
+    let config_path = "./config.json".to_string();
+    let config_content = fs::read_to_string(config_path);
 
-            match ProvingKey::<Testnet3>::from_str(&key_string) {
-                Ok(pkey) => {
-                    let prove_result = prover::prove_assignment(pkey);
+    match config_content {
+        Ok(content) => {
+            let config_json: Result<helpers::input::ProverConfig, Error> = serde_json::from_str(&content);
+            match config_json {
+                Ok(config) => {
+                    let prove_result = prover::prove_authorization(config.private_key);
 
                     match prove_result {
                         Ok(result) => {
@@ -151,7 +148,7 @@ async fn prove_transition() -> Result<HttpResponse, helpers::error::InputError> 
                     }
                 }
                 Err(_) => {
-                    return Err(helpers::error::InputError::InvalidInputs);
+                    return Err(helpers::error::InputError::BadConfigData);
                 }
             }
         }

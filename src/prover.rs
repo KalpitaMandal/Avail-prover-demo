@@ -1,11 +1,11 @@
 use actix_web::HttpResponse;
 use aleo_rust::{
     AleoAPIClient, Encryptor, ProgramManager,
-    snarkvm_types::{PrivateKey, Testnet3, Program, Process, Proof},
-    ProvingKey, AleoV0, VerifyingKey, Identifier, Field
+    snarkvm_types::{PrivateKey, Testnet3, Program, Process},
+    AleoV0, Identifier, Locator, Query, BlockStore, BlockMemory
 };
 use serde_json::json;
-use std::{fs, str::FromStr, time::Instant};
+use std::{str::FromStr, time::Instant};
 use crate::helpers::{error, input};
 use rand::thread_rng;
 
@@ -105,28 +105,14 @@ pub fn execute_offline_hello(
         Ok(execution) => {
             let execution_time = execution_now.elapsed();
             let total_time = total_now.elapsed();
-            let verification_result = verify_execution(
-                program,
-                &payload.clone().function_name, 
-                execution.clone().execution_proof().unwrap()
-            );
-
-            match verification_result {
-                Ok(verified) => {
-                    let execution_result = json!({
-                        "id": execution.clone().execution_id().unwrap().to_string(),
-                        "proof": execution.clone().execution_proof().unwrap(),
-                        "verify": true,
-                        "total_time": total_time.as_millis().to_string() + "ms",
-                        "setup_time": setup_time.as_millis().to_string() + "ms",
-                        "execution_time": execution_time.as_millis().to_string() + "ms"
-                    });
-                    return Ok(HttpResponse::Ok().body(serde_json::to_string(&execution_result).unwrap()));
-                }
-                Err(e) => {
-                    return Err(e);
-                }
-            }
+            let execution_result = json!({
+                "id": execution.clone().execution_id().unwrap().to_string(),
+                "proof": execution.clone().execution_proof().unwrap(),
+                "total_time": total_time.as_millis().to_string() + "ms",
+                "setup_time": setup_time.as_millis().to_string() + "ms",
+                "execution_time": execution_time.as_millis().to_string() + "ms"
+            });
+            return Ok(HttpResponse::Ok().body(serde_json::to_string(&execution_result).unwrap()));
         }   
         Err(err) => {
             println!("Error: {:?}", err);
@@ -135,11 +121,13 @@ pub fn execute_offline_hello(
     }
 }
 
-pub fn prove_assignment(
-    function_name: &str,
-    proving_key_input: ProvingKey<Testnet3>
+pub fn prove_authorization(
+    private_key: String
 ) -> Result<HttpResponse, error::InputError> {
-    let mut rng = &mut thread_rng();
+    let total_now = Instant::now();
+    let setup_now = Instant::now();
+    let rng = &mut thread_rng();
+    let pkey = PrivateKey::<Testnet3>::from_str(&private_key).unwrap();
 
     // Defining a simple hello program with only a hello function
     let test_program = format!("program {};\n\nfunction hello:\n    input r0 as u32.public;\n    input r1 as u32.private;\n    add r0 r1 into r2;\n    output r2 as u32.private;\n", "hello.aleo");
@@ -153,65 +141,50 @@ pub fn prove_assignment(
     let check_program = process.contains_program(program.id());
     assert!(check_program);
 
-    let function = Identifier::<Testnet3>::try_from(function_name).unwrap();
-    let proving_key = process.get_proving_key(
+    let setup_time = setup_now.elapsed();
+    let auth_now = Instant::now();
+    let function = Identifier::<Testnet3>::try_from("hello").unwrap();
+    let auth = process.authorize::<AleoV0,_>(
+        &pkey, 
         program.id(), 
-        function)
-    .unwrap();
-
-    // proving for the assignment
-    let assign = proving_key.circuit.a.first().unwrap().first().unwrap().0;
-
-    // let trial = proving_key_input.prove(
-    //     "hello", 
-    //     assign, 
-    //     rng
-    // );
-
-    return Ok(HttpResponse::Ok().body("Success!"));
-}
-
-pub fn verify_execution(
-    program: Program<Testnet3>,
-    function_name: &str,
-    proof_payload: &Proof<Testnet3>
-) -> Result<HttpResponse, error::InputError> {
-    // initializing a new process
-    let mut process: Process<Testnet3> = Process::load().unwrap();
-    process.add_program(&program).unwrap();
-
-    // Check if program was added correctly
-    let check_program = process.contains_program(program.id());
-    assert!(check_program);
-
-    // fetch the verifying key
-    let verifying_key = process.get_verifying_key(
-        program.id(), 
-        function_name
-    );
-
-    let proving_key = process.get_proving_key(
-        program.id(), 
-        function_name
+        function, 
+        ["3u32", "5u32"].into_iter(), 
+        rng
     ).unwrap();
 
-    let params = proving_key.circuit.a.first().unwrap().first().unwrap().0;
+    let auth_time = auth_now.elapsed();
+    let execute_now = Instant::now();
 
-    match verifying_key {
-        Ok(vkey) => {
-            let verify_result = vkey.verify(
-                function_name, 
-                &[params], 
-                proof_payload
-            );
+    let (result, mut trace) = process.execute::<AleoV0,_>(auth, rng).unwrap();
 
-            if verify_result {
-                return Ok(HttpResponse::Ok().body("Verification valid"));
-            } else {
-                return Err(error::InputError::InvalidInputs);
-            }
+    let execute_time = execute_now.elapsed();
+    let prove_now = Instant::now();
+
+    let locator = Locator::new(*program.id(), function);
+    let block_store = BlockStore::<Testnet3, BlockMemory<_>>::open(None).unwrap();
+    trace.prepare(Query::from(block_store)).unwrap();
+    let prove_result = trace.prove_execution::<AleoV0,_>(&locator.to_string(), rng);
+
+    match prove_result {
+        Ok(prove) => {
+            let prove_time = prove_now.elapsed();
+            let total_time = total_now.elapsed();
+            process.verify_execution(&prove).unwrap();
+            let execution_result = json!({
+                "id": prove.to_execution_id().unwrap(),
+                "result": serde_json::to_string(&result.outputs().to_vec()).unwrap(),
+                "proof": prove.proof().unwrap(),
+                "verified": true,
+                "auth_time": auth_time.as_millis().to_string() + "ms",
+                "proof_time": prove_time.as_millis().to_string() + "ms",
+                "total_time": total_time.as_millis().to_string() + "ms",
+                "setup_time": setup_time.as_millis().to_string() + "ms",
+                "execution_time": execute_time.as_millis().to_string() + "ms"
+            });
+            return Ok(HttpResponse::Ok().body(serde_json::to_string(&execution_result).unwrap()));
         }
-        Err(_) => {
+        Err(e) => {
+            println!("Error: {:?}", e);
             return Err(error::InputError::InvalidInputs);
         }
     }

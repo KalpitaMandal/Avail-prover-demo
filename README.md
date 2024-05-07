@@ -154,3 +154,65 @@ Attempting to broadcast execution transaction for credits.aleo
 ✅ Execute Transaction successfully posted to https://api.explorer.aleo.org/v1
 ✅ Execution of function "transfer_public" from program credits.aleo' broadcast successfully
 ```
+
+### 3. Execute + proof + verify
+
+```cmd
+
+```
+
+#### Expected output:
+The time benchmarks for each process is returned as response
+```
+{
+    "id":"5169518337348917760807980060049410485831618148436770561420713241529432115035field",
+    "result":"[\"8u32\"]","proof":"proof1qyqsqqqqqqqqqqqpqqqqqqqqqqqyxr7gxlh0uxgwg6rtsm223wvsecdpda0g2z9yhuqzdac0zqpnmysfu2yqxe85uj66kv7fq9n7hlqqq9uccel3huesgved59tck4y0vlsmmntczu3y7qjc9hyuw6knezdneae98auka8gfuuzqepjkmgkdkqya5zkgp9y2dgavrn00fwsy2vpr2cp0tnh6klz668wadmccktvklfvq8mqrguymkq6rj4d05g20vwq2qrfkxednclpps3rs6hvj7gj2ze50q6tfg89n2jm5tgkf0vu577yez53j7vqzz6sgpe083ehzwecq5wf4vrnujv9yqe3fezv8hu8dsc3pvlwecd00zyzz0uh2lhx6zzwpw6w80v0tdxp2rqkzyw7levccr294msjkqzdr3k5hzlt88800ysgk6ktpryet8q8hezcv4sxvs9xpd6et76mufgadwy6p4g3t5h5fsz2cx0g3xnpa0ytxx6gu9ks9gedgtfptqsrghws9ljfkklrvz966q22q3xyxxheyznhfcuelt6llvqqyzaee3822ezzt8pp0ghl2ye9yw6fvd0ruln3knrcjmm6tnf7dlrl4775cfn8tc7r77v4fvem3y6qav7hl78je6ea0sey3w46gd8mydxxxejr6crlzp4cpyka3fhqkzjzerx3jh2679ep5ec65fm7vd0sq243t6rlh7qk59jzr3ednxd6zr9t389s39vyz497eqynxeltwqqxj6nc87g886wym7a25x7wyxvt87rsjq7d8njpdzu4ljpqeq0205q2dgn80pdu2zq0fykrkch728rgya8tmph5gpq8twlx7q09hzr3hqxjey8fmvfeaf6nnyr4h3l7h7yhlfcvpnha80026ptu7p8t2850qcm6tv7p47f03hzzxmxtj559g6pxla8hm6e47876du7c8h6pw3dspft2g769hzhlwpv2gqcmtp27qzc4lszyvktx0vnml7qwj87gjcyyr77456yzqvlat9me38nequqtdg9qrczj94wtqcpe2k4vlmud9zyk87raygqc7k7gg0wt5f68qx3hkq9455derpnzw0cd5d0ed4zckpjm7spdf2urmemjepx30p90junjw4s97flm4y2hl02yc76zxuj4q6x5veuv0yru2amulzxnp0fjzqnpx05vq07g8ua4agslufdffjxc8qvqqqqqqqqqqptsuf7dt7ftefltqufq4u76r0akwruhv7cq6jxaj2e3gven6yw94mrrnypp6c9jvv3fnn3t53xznqqqzgruxs27ad6kycg99mccq23vyjug83t3ct6vcgj9k7mtdrlvpnyelrvduykkuxvj22j79r7n34yvqq8tu2hedu8y6nlsp4kvhfcwav9aqesqg0w85q3cjxfma2dl4tuxsgpxsphu2tra6vvaf638ys39gq6dmr7nnhtl6t385fs9ehnuf7sqscrt43wu5dwsrqlctsrjdawjzsyqq5eqfhy",
+    "verify":null,
+    "auth_time":"3835ms",
+    "proof_time":"16016ms",
+    "total_time":"39252ms",
+    "setup_time":"186ms",
+    "execution_time":"19214ms"
+}
+```
+
+#### Printed on server:
+
+```
+✅ Request              (Constant: 24561, Public: 9, Private: 11329, Constraints: 11334, NonZeros: (25769, 35398, 15350))
+✅ Function 'hello()'   (Constant: 24561, Public: 9, Private: 11361, Constraints: 11367, NonZeros: (25897, 35431, 15382))
+✅ Response             (Constant: 25169, Public: 10, Private: 12646, Constraints: 12653, NonZeros: (31196, 44743, 16676))
+✅ Complete             (Constant: 25169, Public: 10, Private: 12646, Constraints: 12653, NonZeros: (31196, 44743, 16676))
+✅ Request              (Constant: 3121, Public: 9, Private: 11329, Constraints: 11334, NonZeros: (25769, 35398, 15350))
+✅ Function 'hello()'   (Constant: 3121, Public: 9, Private: 11361, Constraints: 11367, NonZeros: (25897, 35431, 15382))
+✅ Response             (Constant: 3729, Public: 10, Private: 12646, Constraints: 12653, NonZeros: (31196, 44743, 16676))
+✅ Complete             (Constant: 3729, Public: 10, Private: 12646, Constraints: 12653, NonZeros: (31196, 44743, 16676))
+Number of padded public variables: 16
+Number of private variables: 12649
+Number of num_constraints: 12654
+Number of non-zero entries in A: 31197
+Number of non-zero entries in B: 44744
+Number of non-zero entries in C: 16677
+Loading 65536 powers
+Loading 65536 shifted powers
+Number of padded public variables in Prover::Init: 16
+Number of private variables: 12649
+Number of constraints: 12654
+Number of non-zero entries in A: 31197
+Number of non-zero entries in B: 44744
+Number of non-zero entries in C: 16677
+Verifying transition for hello.aleo/hello...
+Transition public inputs (10 elements): [
+    1,
+    7461225716153960117704516487932855134891601543378756288347846635470117823613,
+    4498683362085247480434778164860572721518622973943395224765859824961810841966,
+    3337126306580864279484980198571065180275025867825890328876096442376108793476,
+    4056531499054861834409511225397472184708582950877789043847884778913147796860,
+    2257535110403237475268063758860426430898860278011463984789491031503252501051,
+    1,
+    399081026162947717441789193514143804912381962784097619328611543647551252220,
+    6001723417577485337807218108206931594222779542583337067225058764148834183141,
+    4250108171921555414572079353778002224530906885016378479727326009506526489040,
+]
+Number of padded public variables: 16
+```
