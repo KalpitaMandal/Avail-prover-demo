@@ -6,7 +6,6 @@ use aleo_rust::{
     ProvingKey
   };
 use serde_json::{Error, json};
-use rand::thread_rng;
 
 mod helpers;
 mod prover;
@@ -136,12 +135,20 @@ async fn prove_transition() -> Result<HttpResponse, helpers::error::InputError> 
         fs::read(&proving_key_path).or_else(|_| fs::read(&alt_proving_key_path));
     match file_content {
         Ok(key) => {
-            let mut _rng = thread_rng();
             let key_string = String::from_utf8(key).unwrap();
 
             match ProvingKey::<Testnet3>::from_str(&key_string) {
-                Ok(_pkey) => {
-                    return Ok(HttpResponse::Ok().body("Proving key: successfully extracted"));
+                Ok(pkey) => {
+                    let prove_result = prover::prove_assignment(pkey);
+
+                    match prove_result {
+                        Ok(result) => {
+                            return Ok(result);
+                        }
+                        Err(e) => {
+                            return Err(e);
+                        }
+                    }
                 }
                 Err(_) => {
                     return Err(helpers::error::InputError::InvalidInputs);
