@@ -158,7 +158,7 @@ Attempting to broadcast execution transaction for credits.aleo
 ### 3. Execute + proof + verify
 
 ```cmd
-
+curl --location --request GET 'http://localhost:3030/prove'
 ```
 
 #### Expected output:
