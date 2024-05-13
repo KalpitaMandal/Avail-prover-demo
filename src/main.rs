@@ -14,6 +14,7 @@ async fn main() -> std::io::Result<()> {
     println!("Starting Aleo prover...");
     HttpServer::new(|| {
         App::new()
+            .service(execute_multi)
             .service(prove_transition)
             .service(execute)
             .service(execute_offline)
@@ -137,6 +138,39 @@ async fn prove_transition() -> Result<HttpResponse, helpers::error::InputError> 
             match config_json {
                 Ok(config) => {
                     let prove_result = prover::prove_authorization(config.private_key);
+
+                    match prove_result {
+                        Ok(result) => {
+                            return Ok(result);
+                        }
+                        Err(e) => {
+                            return Err(e);
+                        }
+                    }
+                }
+                Err(_) => {
+                    return Err(helpers::error::InputError::BadConfigData);
+                }
+            }
+        }
+        Err(_) => {
+            return Err(helpers::error::InputError::FileNotFound);
+        }
+    }
+}
+
+
+#[get("/executeMulti")]
+async fn execute_multi() -> Result<HttpResponse, helpers::error::InputError> {
+    let config_path = "./config.json".to_string();
+    let config_content = fs::read_to_string(config_path);
+
+    match config_content {
+        Ok(content) => {
+            let config_json: Result<helpers::input::ProverConfig, Error> = serde_json::from_str(&content);
+            match config_json {
+                Ok(config) => {
+                    let prove_result = prover::execute_offline_multi(config);
 
                     match prove_result {
                         Ok(result) => {
