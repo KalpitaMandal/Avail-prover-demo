@@ -56,37 +56,46 @@ async fn welcome() -> Result<HttpResponse, helpers::error::InputError> {
 async fn execute(
     payload: web::Json<helpers::input::ExecutePayload>,
 ) -> Result<HttpResponse, helpers::error::InputError> {
-    let config_path = "./config.json".to_string();
-    let config_content = fs::read_to_string(config_path);
+    let config = helpers::input::ProverConfig {
+        private_key: "APrivateKey1zkpFV9ADL3S9hQcSAjdnrACkPZ7L1FwCUnX9TduQFotz2cS".to_string(),
+        query_url: "https://api.explorer.aleo.org/v1".to_string(),
+        secret: "Kalpita@11223344".to_string(),
+    };
+    let execute_result = prover::execute_credits_transfer_public(
+        config,
+        payload.0
+    );
 
-    match config_content {
-        Ok(content) => {
-            let config_json: Result<helpers::input::ProverConfig, Error> = serde_json::from_str(&content);
-            match config_json {
-                Ok(config) => {
-                    let execute_result = prover::execute_credits_transfer_public(
-                        config,
-                        payload.0
-                    );
-
-                    match execute_result {
-                        Ok(result) => {
-                            return Ok(result);
-                        }
-                        Err(e) => {
-                            return Err(e);
-                        }
-                    }
-                }
-                Err(_) => {
-                    return Err(helpers::error::InputError::BadConfigData);
-                }
-            }
+    match execute_result {
+        Ok(result) => {
+            return Ok(result);
         }
-        Err(_) => {
-            return Err(helpers::error::InputError::FileNotFound);
+        Err(e) => {
+            return Err(e);
         }
     }
+
+    // let config_path = "../config.json".to_string();
+    // let alt_config_path = "./config.json".to_string();
+    // let config_content = fs::read_to_string(&config_path)
+    //     .or_else(|_| fs::read_to_string(&alt_config_path));
+
+    // match config_content {
+    //     Ok(content) => {
+    //         let config_json: Result<helpers::input::ProverConfig, Error> = serde_json::from_str(&content);
+    //         match config_json {
+    //             Ok(config) => {
+                    
+    //             }
+    //             Err(_) => {
+    //                 return Err(helpers::error::InputError::BadConfigData);
+    //             }
+    //         }
+    //     }
+    //     Err(_) => {
+    //         return Err(helpers::error::InputError::FileNotFound);
+    //     }
+    // }
 }
 
 // To execute local programs 
@@ -94,100 +103,130 @@ async fn execute(
 async fn execute_offline(
     payload: web::Json<helpers::input::ExecuteOfflinePayload>,
 ) -> Result<HttpResponse, helpers::error::InputError> {
-    let config_path = "./config.json".to_string();
-    let config_content = fs::read_to_string(config_path);
+    let config = helpers::input::ProverConfig {
+        private_key: "APrivateKey1zkpFV9ADL3S9hQcSAjdnrACkPZ7L1FwCUnX9TduQFotz2cS".to_string(),
+        query_url: "https://api.explorer.aleo.org/v1".to_string(),
+        secret: "Kalpita@11223344".to_string(),
+    };
 
-    match config_content {
-        Ok(content) => {
-            let config_json: Result<helpers::input::ProverConfig, Error> = serde_json::from_str(&content);
-            match config_json {
-                Ok(config) => {
-                    let execute_result = prover::execute_offline_hello(
-                        config,
-                        payload.0
-                    );
+    let execute_result = prover::execute_offline_hello(
+        config,
+        payload.0
+    );
 
-                    match execute_result {
-                        Ok(result) => {
-                            return Ok(result);
-                        }
-                        Err(e) => {
-                            return Err(e);
-                        }
-                    }
-                }
-                Err(_) => {
-                    return Err(helpers::error::InputError::BadConfigData);
-                }
-            }
+    match execute_result {
+        Ok(result) => {
+            return Ok(result);
         }
-        Err(_) => {
-            return Err(helpers::error::InputError::FileNotFound);
+        Err(e) => {
+            return Err(e);
         }
     }
+
+    // let config_path = "../config.json".to_string();
+    // let alt_config_path = "./config.json".to_string();
+    // let config_content = fs::read_to_string(&config_path)
+    //     .or_else(|_| fs::read_to_string(&alt_config_path));
+
+    // match config_content {
+    //     Ok(content) => {
+    //         let config_json: Result<helpers::input::ProverConfig, Error> = serde_json::from_str(&content);
+    //         match config_json {
+    //             Ok(config) => {
+                    
+    //             }
+    //             Err(_) => {
+    //                 return Err(helpers::error::InputError::BadConfigData);
+    //             }
+    //         }
+    //     }
+    //     Err(_) => {
+    //         return Err(helpers::error::InputError::FileNotFound);
+    //     }
+    // }
 }
 
 #[get("/prove")]
 async fn prove_transition() -> Result<HttpResponse, helpers::error::InputError> {
-    let config_path = "./config.json".to_string();
-    let config_content = fs::read_to_string(config_path);
+    let config = helpers::input::ProverConfig {
+        private_key: "APrivateKey1zkpFV9ADL3S9hQcSAjdnrACkPZ7L1FwCUnX9TduQFotz2cS".to_string(),
+        query_url: "https://api.explorer.aleo.org/v1".to_string(),
+        secret: "Kalpita@11223344".to_string(),
+    };
 
-    match config_content {
-        Ok(content) => {
-            let config_json: Result<helpers::input::ProverConfig, Error> = serde_json::from_str(&content);
-            match config_json {
-                Ok(config) => {
-                    let prove_result = prover::prove_authorization(config.private_key);
+    let prove_result = prover::prove_authorization(config.private_key);
 
-                    match prove_result {
-                        Ok(result) => {
-                            return Ok(result);
-                        }
-                        Err(e) => {
-                            return Err(e);
-                        }
-                    }
-                }
-                Err(_) => {
-                    return Err(helpers::error::InputError::BadConfigData);
-                }
-            }
+    match prove_result {
+        Ok(result) => {
+            return Ok(result);
         }
-        Err(_) => {
-            return Err(helpers::error::InputError::FileNotFound);
+        Err(e) => {
+            return Err(e);
         }
     }
+
+    // let config_path = "../config.json".to_string();
+    // let alt_config_path = "./config.json".to_string();
+    // let config_content = fs::read_to_string(&config_path)
+    //     .or_else(|_| fs::read_to_string(&alt_config_path));
+
+    // match config_content {
+    //     Ok(content) => {
+    //         let config_json: Result<helpers::input::ProverConfig, Error> = serde_json::from_str(&content);
+    //         match config_json {
+    //             Ok(config) => {
+                    
+    //             }
+    //             Err(_) => {
+    //                 return Err(helpers::error::InputError::BadConfigData);
+    //             }
+    //         }
+    //     }
+    //     Err(_) => {
+    //         return Err(helpers::error::InputError::FileNotFound);
+    //     }
+    // }
 }
 
 
 #[get("/executeMulti")]
 async fn execute_multi() -> Result<HttpResponse, helpers::error::InputError> {
-    let config_path = "./config.json".to_string();
-    let config_content = fs::read_to_string(config_path);
+    let config = helpers::input::ProverConfig {
+        private_key: "APrivateKey1zkpFV9ADL3S9hQcSAjdnrACkPZ7L1FwCUnX9TduQFotz2cS".to_string(),
+        query_url: "https://api.explorer.aleo.org/v1".to_string(),
+        secret: "Kalpita@11223344".to_string(),
+    };
 
-    match config_content {
-        Ok(content) => {
-            let config_json: Result<helpers::input::ProverConfig, Error> = serde_json::from_str(&content);
-            match config_json {
-                Ok(config) => {
-                    let prove_result = prover::execute_offline_multi(config);
+    let prove_result = prover::execute_offline_multi(config);
 
-                    match prove_result {
-                        Ok(result) => {
-                            return Ok(result);
-                        }
-                        Err(e) => {
-                            return Err(e);
-                        }
-                    }
-                }
-                Err(_) => {
-                    return Err(helpers::error::InputError::BadConfigData);
-                }
-            }
+    match prove_result {
+        Ok(result) => {
+            return Ok(result);
         }
-        Err(_) => {
-            return Err(helpers::error::InputError::FileNotFound);
+        Err(e) => {
+            return Err(e);
         }
     }
+
+    // let config_path = "../config.json".to_string();
+    // let alt_config_path = "./config.json".to_string();
+    // let config_content = fs::read_to_string(&config_path)
+    //     .or_else(|_| fs::read_to_string(&alt_config_path));
+
+    // match config_content {
+    //     Ok(content) => {
+    //         let config_json: Result<helpers::input::ProverConfig, Error> = serde_json::from_str(&content);
+    //         match config_json {
+    //             Ok(config) => {
+                    
+    //             }
+    //             Err(_) => {
+    //                 return Err(helpers::error::InputError::BadConfigData);
+    //             }
+    //         }
+    //     }
+    //     Err(_) => {
+    //         return Err(helpers::error::InputError::FileNotFound);
+    //     }
+    // }
 }
