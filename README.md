@@ -1,16 +1,5 @@
 # Avail Prover Demo
 
-## Environment variables
-Add the following details to your `config.json` file. Use the aleo sdk to obtain your account private key. The secret is used to encrypt your private key.
-
-```
-{
-    "private_key": "APrivateKey...",
-    "query_url": "https://api.explorer.aleo.org/v1",
-    "secret": "***"
-}
-```
-
 ## Instructions
 To start the prover, use `cargo run --release`
 
