@@ -1,9 +1,26 @@
 use actix_web::{
     error,
-    http::{header::ContentType, StatusCode},
-    HttpResponse,
+    http::{header::ContentType, StatusCode}, 
+    HttpResponse
 };
 use derive_more::{Display, Error};
+use bindings::shared_types::Ask;
+use serde::{Deserialize, Serialize};
+
+#[derive(Serialize, Debug, Deserialize)]
+pub struct ProverInputs {
+    pub ask: Ask,
+    pub public_inputs: Vec<String>,
+    pub private_input: Option<Vec<u8>>,
+    pub ask_id: u64,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct ProverConfig {
+    pub private_key: String,
+    pub query_url: String,
+    pub secret: String,
+}
 
 #[derive(Debug, Display, Error)]
 pub enum InputError {
