@@ -27,7 +27,7 @@ async fn test() -> Result<HttpResponse, model::InputError> {
     return Ok(HttpResponse::Ok().body(serde_json::to_string(&response).unwrap()));
 }
 
-#[get("/benchmark")]
+#[post("/benchmark")]
 async fn benchmark(
     payload: web::Json<model::ProverInputs>
 ) -> Result<HttpResponse, model::InputError> {

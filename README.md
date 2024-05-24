@@ -19,7 +19,7 @@ To start the prover, use `cargo run --release`
 ### 1. Fetch program 
 
 ```cmd
-curl --location --request GET 'http://localhost:3030/welcome'
+curl --location --request GET 'http://localhost:3030/test'
 ```
 
 #### Expected output: 
