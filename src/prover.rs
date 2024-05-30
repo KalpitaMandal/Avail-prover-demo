@@ -1,72 +1,32 @@
-use actix_web::HttpResponse;
 use aleo_rust::{
-    AleoAPIClient, Encryptor, ProgramManager,
     snarkvm_types::{PrivateKey, Testnet3, Program, Process},
     AleoV0, Identifier, Locator, Query, BlockStore, BlockMemory
 };
-use ethers::signers::{LocalWallet, Signer};
+use ethers::{signers::{LocalWallet, Signer}};
 use secp256k1;
-use serde_json::json;
 use std::{fs, str::FromStr, time::Instant};
 use crate::model;
 use rand::thread_rng;
 
-pub fn execute_credits_transfer_public(
-    config: model::ProverConfig,
-    payload: model::ProverInputs
-) -> Result<HttpResponse, model::InputError> {
-    let total_now = Instant::now();
-    let api_client = AleoAPIClient::<Testnet3>::testnet3();
-    let private_key = PrivateKey::<Testnet3>::from_str(&config.private_key).unwrap();
-    let private_key_ciphertext = Encryptor::<Testnet3>::encrypt_private_key_with_secret(
-        &private_key, 
-        &config.secret
-    ).unwrap();
+pub struct GenerateProofResponse {
+    pub proof: Option<ethers::types::Bytes>,
+    pub verification_status: bool,
+    pub signature: Option<String>,
+}
 
-    let mut program_manager = ProgramManager::<Testnet3>::new(
-        None, 
-        Some(private_key_ciphertext), 
-        Some(api_client), 
-        None, 
-        false).unwrap();
-
-    let execution_now = Instant::now();
-
-    // execute program onchain
-    let results = program_manager.execute_program(
-        "credits.aleo", 
-        "transfer_public", 
-        payload.public_inputs.into_iter(), 
-        0, 
-        None, 
-        Some(&config.secret), 
-        None
-    );
-
-    match results {
-        Ok(txhash) => {
-            let execution_time = execution_now.elapsed();
-            let total_time = total_now.elapsed();
-            let response_body = json!({
-                "txnHash": txhash,
-                "total_time": total_time.as_millis().to_string() + "ms",
-                "execution_time": execution_time.as_millis().to_string() + "ms"
-            });
-            return Ok(HttpResponse::Ok().body(serde_json::to_string(&response_body).unwrap()));
-        }
-        Err(_) => {
-            return Err(model::InputError::ExecutionFailed);
-        }
-    }
+pub struct BenchmarkResponse {
+    pub proof_generation_time: u128,
 }
 
 pub fn prove_authorization(
     private_key: String,
-    payload: model::ProverInputs
-) -> Result<HttpResponse, model::InputError> {
-    let total_now = Instant::now();
+    payload: model::BenchmarkInputs
+) -> Result<BenchmarkResponse, model::InputError> {
     let rng = &mut thread_rng();
     let pkey = PrivateKey::<Testnet3>::from_str(&private_key).unwrap();
+
+    log::info!("Setup for proof generation started...");
+    let setup_now = Instant::now();
 
     // Defining a simple hello program with only a hello function
     let program_path = "./test_hello.txt".to_string();
@@ -94,15 +54,20 @@ pub fn prove_authorization(
         program.id(), 
         function, 
         payload.public_inputs.into_iter(),
-        // ["3u32", "5u32"].into_iter(), 
         rng
     ).unwrap();
 
+    log::info!("Setup time: {:?}ms", setup_now.elapsed().as_millis());
+
+    log::info!("Execution started...");
     let execute_now = Instant::now();
 
     let (_result, mut trace) = process.execute::<AleoV0,_>(auth, rng).unwrap();
 
     let execute_time = execute_now.elapsed();
+
+    log::info!("Execution time: {:?}ms", execute_time.as_millis());
+    log::info!("Proof generation started...");
     let prove_now = Instant::now();
 
     let locator = Locator::new(*program.id(), function);
@@ -113,22 +78,18 @@ pub fn prove_authorization(
     match prove_result {
         Ok(prove) => {
             let prove_time = prove_now.elapsed();
-            let total_time = total_now.elapsed();
+            log::info!("Proof generation time: {:?}ms", prove_time.as_millis());
+            log::info!("Generated Proof: {:?}", prove.proof().unwrap());
             process.verify_execution(&prove).unwrap();
-            let execution_result = json!({
-                "id": prove.to_execution_id().unwrap(),
-                // "result": serde_json::to_string(&result.outputs().to_vec()).unwrap(),
-                "proof": prove.proof().unwrap(),
-                "verified": true,
-                "proof_time": prove_time.as_millis().to_string() + "ms",
-                "total_time": total_time.as_millis().to_string() + "ms",
-                "execution_time": execute_time.as_millis().to_string() + "ms"
-            });
-            return Ok(HttpResponse::Ok().body(serde_json::to_string(&execution_result).unwrap()));
+            log::info!("Proof verification status : {:?}", true);
+            let execution_response = BenchmarkResponse {
+                proof_generation_time: (execute_time + prove_time).as_millis()
+            };
+            return Ok(execution_response);
         }
         Err(e) => {
-            println!("Error: {:?}", e);
-            return Err(model::InputError::InvalidInputs);
+            log::error!("Benchmarking error: {:?}", e);
+            return Err(model::InputError::ExecutionFailed);
         }
     }
 }
@@ -136,8 +97,7 @@ pub fn prove_authorization(
 pub async fn prove_multi(
     private_key: String,
     payload: model::ProverInputs
-) -> Result<HttpResponse, model::InputError> {
-    let total_now = Instant::now();
+) -> Result<GenerateProofResponse, model::InputError> {
     let rng = &mut thread_rng();
     let pkey = PrivateKey::<Testnet3>::from_str(&private_key).unwrap();
     let read_secp_private_key = fs::read("/app/secp.sec").unwrap();
@@ -146,6 +106,9 @@ pub async fn prove_multi(
         .display_secret()
         .to_string();
     let signer_wallet = secp_private_key.parse::<LocalWallet>().unwrap();
+
+    log::info!("Setup for proof generation started...");
+    let setup_now = Instant::now();
 
     // Defining a complex program with 4 transitions
     let multi_program_path = "./multi_txn_t1.txt".to_string();
@@ -191,21 +154,30 @@ pub async fn prove_multi(
     let check_program = process.contains_program(program.id());
     assert!(check_program);
 
+    let inputs = hex::encode(payload.ask.prover_data.clone());
+    // log::info!("inputs: {:?}", inputs);
+    let decoded_inputs = get_public_inputs(inputs.to_string()).unwrap();
+    // log::info!("Received inputs: {:?}", decoded_inputs);
+
     let function = Identifier::<Testnet3>::try_from("transfer_public").unwrap();
     let auth = process.authorize::<AleoV0,_>(
         &pkey, 
         program.id(), 
         function, 
-        payload.public_inputs.into_iter(),
-        // ["aleo1rn636g94mx3qqhf7m79nsne3llv4dqs25707yhwcrk92p0kwrc9qe392wg", "3u64", "1u64"].into_iter(), 
+        decoded_inputs.into_iter(),
         rng
     ).unwrap();
 
+    log::info!("Setup time: {:?}ms", setup_now.elapsed().as_millis());
+
+    log::info!("Execution started...");
     let execute_now = Instant::now();
 
     let (_result, mut trace) = process.execute::<AleoV0,_>(auth, rng).unwrap();
 
     let execute_time = execute_now.elapsed();
+    log::info!("Execution time: {:?}ms", execute_time.as_millis());
+    log::info!("Proof generation started...");
     let prove_now = Instant::now();
 
     let locator = Locator::new(*program.id(), function);
@@ -216,11 +188,14 @@ pub async fn prove_multi(
     match prove_result {
         Ok(prove) => {
             let prove_time = prove_now.elapsed();
-            let total_time = total_now.elapsed();
+            log::info!("Proof generation time: {:?}ms", prove_time.as_millis());
+            let proof: &aleo_rust::Proof<Testnet3> = prove.proof().unwrap();
+            log::info!("Generated Proof: {:?}", proof.clone());
             process.verify_execution(&prove).unwrap();
+            log::info!("Proof verification status : {:?}", true);
 
             let ask_id = payload.ask_id;
-            let public_inputs = payload.ask.prover_data;
+            let public_inputs = payload.ask.prover_data.clone();
             let value = vec![
                 ethers::abi::Token::Uint(ask_id.into()),
                 ethers::abi::Token::Bytes(public_inputs.to_vec()),
@@ -232,21 +207,56 @@ pub async fn prove_multi(
                 .sign_message(ethers::types::H256(digest))
                 .await
                 .unwrap();
-            let execution_result = json!({
-                "id": ask_id,
-                // "result": serde_json::to_string(&result.outputs().to_vec()).unwrap(),
-                "proof": prove.proof().unwrap(),
-                "verified": true,
-                "signature": Some("0x".to_owned() + &signature.to_string()),
-                "proof_time": prove_time.as_millis().to_string() + "ms",
-                "total_time": total_time.as_millis().to_string() + "ms",
-                "execution_time": execute_time.as_millis().to_string() + "ms"
-            });
-            return Ok(HttpResponse::Ok().body(serde_json::to_string(&execution_result).unwrap()));
+            let proof_string = proof.to_string();
+            let proof_bytes = proof_string.as_bytes();
+            let execution_response = GenerateProofResponse {
+                proof: Some(ethers::types::Bytes::from(proof_bytes.to_vec())),
+                verification_status: true,
+                signature: Some("0x".to_owned() + &signature.to_string()),
+            };
+        
+            return Ok(execution_response)
         }
         Err(e) => {
             println!("Error: {:?}", e);
             return Err(model::InputError::InvalidInputs);
         }
     }
+}
+
+fn get_public_inputs(decoded_pub_input: String) -> Result<Vec<String>, model::InputError> {
+    use ethers::abi::{decode, ParamType};
+    use ethers::prelude::*;
+
+    fn decode_input(
+        encoded_input: Bytes,
+    ) -> Result<Vec<String>, Box<dyn std::error::Error>> {
+        let param_types = vec![ParamType::FixedArray(Box::new(ParamType::String), 3)];
+        let tokens = decode(&param_types, &encoded_input.0)?;
+
+        if let Some(ethers::abi::Token::FixedArray(arr)) = tokens.first() {
+            if arr.len() == 3 {
+                let mut output = vec!["".to_string(); 3];
+                for (i, token) in arr.iter().enumerate() {
+                    if let ethers::abi::Token::String(u) = token {
+                        output[i] = String::from(u);
+                    } else {
+                        return Err("Expected a U256 inside the FixedArray".into());
+                    }
+                }
+                Ok(output)
+            } else {
+                Err("Unexpected number of decoded tokens inside the FixedArray".into())
+            }
+        } else {
+            Err("Unexpected decoded token type".into())
+        }
+    }
+
+    let decoded_pub_input_bytes = hex::decode(decoded_pub_input).unwrap();
+    let public = decode_input(decoded_pub_input_bytes.into()).unwrap();
+
+    let pub_input = serde_json::from_value(public.into()).unwrap();
+
+    Ok(pub_input)
 }

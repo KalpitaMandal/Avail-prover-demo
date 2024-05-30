@@ -10,9 +10,14 @@ use serde::{Deserialize, Serialize};
 #[derive(Serialize, Debug, Deserialize)]
 pub struct ProverInputs {
     pub ask: Ask,
-    pub public_inputs: Vec<String>,
     pub private_input: Option<Vec<u8>>,
     pub ask_id: u64,
+}
+
+#[derive(Serialize, Debug, Deserialize)]
+pub struct BenchmarkInputs {
+    pub public_inputs: Vec<String>,
+    pub private_input: Option<Vec<u8>>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
