@@ -17,8 +17,8 @@ async fn benchmark(
     payload: web::Json<model::BenchmarkInputs>
 ) -> impl Responder {
     // Fetch config
-    let config_path = "./config.json".to_string();
-    let alt_config_path = "../config.json".to_string();
+    let config_path = "./app/config.json".to_string();
+    let alt_config_path = "../app/config.json".to_string();
     let file_content =
         fs::read_to_string(config_path).or_else(|_| fs::read_to_string(alt_config_path));
     if file_content.is_err() {
@@ -63,8 +63,8 @@ async fn generate_proof(
     payload: web::Json<model::ProverInputs>
 ) -> impl Responder {
     // Fetch config
-    let config_path = "./config.json".to_string();
-    let alt_config_path = "../config.json".to_string();
+    let config_path = "./app/config.json".to_string();
+    let alt_config_path = "../app/config.json".to_string();
     let file_content =
         fs::read_to_string(config_path).or_else(|_| fs::read_to_string(alt_config_path));
     if file_content.is_err() {

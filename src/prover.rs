@@ -29,8 +29,8 @@ pub fn prove_authorization(
     let setup_now = Instant::now();
 
     // Defining a simple hello program with only a hello function
-    let program_path = "./test_hello.txt".to_string();
-    let alt_program_path = "../test_hello.txt".to_string();
+    let program_path = "./app/test_hello.txt".to_string();
+    let alt_program_path = "../app/test_hello.txt".to_string();
     let file_content =
         fs::read_to_string(program_path).or_else(|_| fs::read_to_string(alt_program_path));
     if file_content.is_err() {
@@ -111,8 +111,8 @@ pub async fn prove_multi(
     let setup_now = Instant::now();
 
     // Defining a complex program with 4 transitions
-    let multi_program_path = "./multi_txn_t1.txt".to_string();
-    let alt_multi_program_path = "../multi_txn_t1.txt".to_string();
+    let multi_program_path = "./app/multi_txn_t1.txt".to_string();
+    let alt_multi_program_path = "../app/multi_txn_t1.txt".to_string();
     let file_content =
         fs::read_to_string(multi_program_path).or_else(|_| fs::read_to_string(alt_multi_program_path));
     if file_content.is_err() {
@@ -122,8 +122,8 @@ pub async fn prove_multi(
     let test_program = file_content.unwrap();
     let program = Program::from_str(&test_program).unwrap();
 
-    let helper_program_path = "./helper.txt".to_string();
-    let alt_helper_program_path = "../helper.txt".to_string();
+    let helper_program_path = "./app/helper.txt".to_string();
+    let alt_helper_program_path = "../app/helper.txt".to_string();
     let file_content =
         fs::read_to_string(helper_program_path).or_else(|_| fs::read_to_string(alt_helper_program_path));
     if file_content.is_err() {
@@ -133,8 +133,8 @@ pub async fn prove_multi(
     let im_1 = file_content.unwrap();
     let im_program_1 = Program::from_str(&im_1).unwrap();
 
-    let fees_program_path = "./fees.txt".to_string();
-    let alt_fees_program_path = "../fees.txt".to_string();
+    let fees_program_path = "./app/fees.txt".to_string();
+    let alt_fees_program_path = "../app/fees.txt".to_string();
     let file_content =
         fs::read_to_string(fees_program_path).or_else(|_| fs::read_to_string(alt_fees_program_path));
     if file_content.is_err() {
