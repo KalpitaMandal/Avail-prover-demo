@@ -34,13 +34,10 @@ curl --location --request GET 'http://localhost:3030/api/test'
 ### 2. Benchmark prover
 
 ```cmd
-curl --location --request POST 'http://localhost:3030/api/benchmark' \
---header 'Content-Type: application/json' \
---data-raw '{
-"public_inputs":["3u32", "5u32"],
-"private_input": null
-}'
+curl --location --request GET 'http://localhost:3030/api/benchmark'
 ```
+
+
 
 #### Expected output:
 

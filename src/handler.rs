@@ -12,10 +12,8 @@ async fn test() -> impl Responder {
     response("The Avail prover is running!!", StatusCode::OK, None)
 }
 
-#[post("/benchmark")]
-async fn benchmark(
-    payload: web::Json<model::BenchmarkInputs>
-) -> impl Responder {
+#[get("/benchmark")]
+async fn benchmark() -> impl Responder {
     // Fetch config
     let config_path = "./app/config.json".to_string();
     let alt_config_path = "../app/config.json".to_string();
@@ -36,7 +34,7 @@ async fn benchmark(
 
     log::info!("Printing benchmarks for the avail prover");
 
-    let benchmark_proof_generation = prover::prove_authorization(config.private_key, payload.0);
+    let benchmark_proof_generation = prover::prove_authorization(config.private_key);
 
     match benchmark_proof_generation {
         Ok(benchmarks) => {

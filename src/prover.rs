@@ -19,8 +19,7 @@ pub struct BenchmarkResponse {
 }
 
 pub fn prove_authorization(
-    private_key: String,
-    payload: model::BenchmarkInputs
+    private_key: String
 ) -> Result<BenchmarkResponse, model::InputError> {
     let rng = &mut thread_rng();
     let pkey = PrivateKey::<Testnet3>::from_str(&private_key).unwrap();
@@ -53,7 +52,7 @@ pub fn prove_authorization(
         &pkey, 
         program.id(), 
         function, 
-        payload.public_inputs.into_iter(),
+        ["3u32", "5u32"].into_iter(),
         rng
     ).unwrap();
 
