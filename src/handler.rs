@@ -94,10 +94,11 @@ async fn generate_proof(payload: web::Json<model::ProverInputs>) -> impl Respond
                     ethers::abi::Token::Bytes(sig_bytes.to_vec()),
                 ];
                 let encoded = ethers::abi::encode(&value);
+                let encoded_bytes: ethers::types::Bytes = encoded.into();
                 return Ok(response(
                     "Proof generated",
                     StatusCode::OK,
-                    Some(encoded.into()),
+                    Some(Value::String(encoded_bytes.to_string())),
                 ));
             } else {
                 let public_inputs = prove.input.unwrap();
@@ -108,10 +109,11 @@ async fn generate_proof(payload: web::Json<model::ProverInputs>) -> impl Respond
                     ethers::abi::Token::Bytes(sig_bytes.to_vec()),
                 ];
                 let encoded = ethers::abi::encode(&value);
+                let encoded_bytes: ethers::types::Bytes = encoded.into();
                 return Ok(response(
                     "Proof NOT generated",
                     StatusCode::BAD_REQUEST,
-                    Some(encoded.into()),
+                    Some(Value::String(encoded_bytes.to_string())),
                 ));
             }   
         }
