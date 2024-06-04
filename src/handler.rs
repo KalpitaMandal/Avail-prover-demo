@@ -83,22 +83,37 @@ async fn generate_proof(payload: web::Json<model::ProverInputs>) -> impl Respond
 
     match prove_result {
         Ok(prove) => {
-            let public_inputs = prove.input.unwrap();
-            let proof_bytes = prove.proof.unwrap();
-            let signature = prove.signature.unwrap();
-            let sig_bytes = ethers::types::Bytes::from_str(&signature).unwrap();
-            let value = vec![
-                ethers::abi::Token::Bytes(public_inputs.to_vec()),
-                ethers::abi::Token::Bytes(proof_bytes.to_vec()),
-                ethers::abi::Token::Bytes(sig_bytes.to_vec()),
-            ];
-            let encoded = ethers::abi::encode(&value);
-            let data = String::from_utf8_lossy(&encoded).to_string();
-            return Ok(response(
-                "Proof generated",
-                StatusCode::OK,
-                Some(Value::String(data)),
-            ));
+            if prove.proof.is_some() {
+                let public_inputs = prove.input.unwrap();
+                let proof_bytes = prove.proof.unwrap();
+                let signature = prove.signature.unwrap();
+                let sig_bytes = ethers::types::Bytes::from_str(&signature).unwrap();
+                let value = vec![
+                    ethers::abi::Token::Bytes(public_inputs.to_vec()),
+                    ethers::abi::Token::Bytes(proof_bytes.to_vec()),
+                    ethers::abi::Token::Bytes(sig_bytes.to_vec()),
+                ];
+                let encoded = ethers::abi::encode(&value);
+                return Ok(response(
+                    "Proof generated",
+                    StatusCode::OK,
+                    Some(encoded.into()),
+                ));
+            } else {
+                let public_inputs = prove.input.unwrap();
+                let signature = prove.signature.unwrap();
+                let sig_bytes = ethers::types::Bytes::from_str(&signature).unwrap();
+                let value = vec![
+                    ethers::abi::Token::Bytes(public_inputs.to_vec()),
+                    ethers::abi::Token::Bytes(sig_bytes.to_vec()),
+                ];
+                let encoded = ethers::abi::encode(&value);
+                return Ok(response(
+                    "Proof NOT generated",
+                    StatusCode::BAD_REQUEST,
+                    Some(encoded.into()),
+                ));
+            }   
         }
         Err(e) => {
             response(

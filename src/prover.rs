@@ -187,6 +187,8 @@ pub async fn prove_multi(
     trace.prepare(Query::from(block_store)).unwrap();
     let prove_result = trace.prove_execution::<AleoV0, _>(&locator.to_string(), rng);
 
+    let public_inputs = payload.ask.prover_data.clone();
+
     match prove_result {
         Ok(prove) => {
             let prove_time = prove_now.elapsed();
@@ -195,8 +197,7 @@ pub async fn prove_multi(
             log::info!("Generated Proof: {:?}", proof.clone());
             process.verify_execution(&prove).unwrap();
             log::info!("Proof verification status : {:?}", true);
-
-            let public_inputs = payload.ask.prover_data.clone();
+            
             let proof_string = proof.to_string();
             let proof_bytes = proof_string.as_bytes();
             let value = vec![
@@ -222,7 +223,26 @@ pub async fn prove_multi(
         }
         Err(e) => {
             println!("Error: {:?}", e);
-            return Err(model::InputError::InvalidInputs);
+            let ask_id = payload.ask_id;
+            let value = vec![
+                ethers::abi::Token::Uint(ask_id.into()),
+                ethers::abi::Token::Bytes(public_inputs.to_vec()),
+            ];
+            let encoded = ethers::abi::encode(&value);
+            let digest = ethers::utils::keccak256(encoded);
+
+            let signature = signer_wallet
+                .sign_message(ethers::types::H256(digest))
+                .await
+                .unwrap();
+
+            let execution_response = GenerateProofResponse {
+                input: Some(payload.ask.prover_data.clone()),
+                proof: None,
+                verification_status: false,
+                signature: Some("0x".to_owned() + &signature.to_string()),
+            };
+            return Ok(execution_response);
         }
     }
 }
