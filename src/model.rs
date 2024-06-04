@@ -1,10 +1,10 @@
 use actix_web::{
     error,
-    http::{header::ContentType, StatusCode}, 
-    HttpResponse
+    http::{header::ContentType, StatusCode},
+    HttpResponse,
 };
-use derive_more::{Display, Error};
 use bindings::shared_types::Ask;
+use derive_more::{Display, Error};
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Debug, Deserialize)]

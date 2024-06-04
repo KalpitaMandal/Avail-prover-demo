@@ -1,14 +1,15 @@
+use crate::model;
 use aleo_rust::{
-    snarkvm_types::{PrivateKey, Testnet3, Program, Process},
-    AleoV0, Identifier, Locator, Query, BlockStore, BlockMemory
+    snarkvm_types::{PrivateKey, Process, Program, Testnet3},
+    AleoV0, BlockMemory, BlockStore, Identifier, Locator, Query,
 };
-use ethers::{signers::{LocalWallet, Signer}};
+use ethers::signers::{LocalWallet, Signer};
+use rand::thread_rng;
 use secp256k1;
 use std::{fs, str::FromStr, time::Instant};
-use crate::model;
-use rand::thread_rng;
 
 pub struct GenerateProofResponse {
+    pub input: Option<ethers::types::Bytes>,
     pub proof: Option<ethers::types::Bytes>,
     pub verification_status: bool,
     pub signature: Option<String>,
@@ -18,9 +19,7 @@ pub struct BenchmarkResponse {
     pub proof_generation_time: u128,
 }
 
-pub fn prove_authorization(
-    private_key: String
-) -> Result<BenchmarkResponse, model::InputError> {
+pub fn prove_authorization(private_key: String) -> Result<BenchmarkResponse, model::InputError> {
     let rng = &mut thread_rng();
     let pkey = PrivateKey::<Testnet3>::from_str(&private_key).unwrap();
 
@@ -48,20 +47,22 @@ pub fn prove_authorization(
     assert!(check_program);
 
     let function = Identifier::<Testnet3>::try_from("hello").unwrap();
-    let auth = process.authorize::<AleoV0,_>(
-        &pkey, 
-        program.id(), 
-        function, 
-        ["3u32", "5u32"].into_iter(),
-        rng
-    ).unwrap();
+    let auth = process
+        .authorize::<AleoV0, _>(
+            &pkey,
+            program.id(),
+            function,
+            ["3u32", "5u32"].into_iter(),
+            rng,
+        )
+        .unwrap();
 
     log::info!("Setup time: {:?}ms", setup_now.elapsed().as_millis());
 
     log::info!("Execution started...");
     let execute_now = Instant::now();
 
-    let (_result, mut trace) = process.execute::<AleoV0,_>(auth, rng).unwrap();
+    let (_result, mut trace) = process.execute::<AleoV0, _>(auth, rng).unwrap();
 
     let execute_time = execute_now.elapsed();
 
@@ -72,7 +73,7 @@ pub fn prove_authorization(
     let locator = Locator::new(*program.id(), function);
     let block_store = BlockStore::<Testnet3, BlockMemory<_>>::open(None).unwrap();
     trace.prepare(Query::from(block_store)).unwrap();
-    let prove_result = trace.prove_execution::<AleoV0,_>(&locator.to_string(), rng);
+    let prove_result = trace.prove_execution::<AleoV0, _>(&locator.to_string(), rng);
 
     match prove_result {
         Ok(prove) => {
@@ -82,7 +83,7 @@ pub fn prove_authorization(
             process.verify_execution(&prove).unwrap();
             log::info!("Proof verification status : {:?}", true);
             let execution_response = BenchmarkResponse {
-                proof_generation_time: (execute_time + prove_time).as_millis()
+                proof_generation_time: (execute_time + prove_time).as_millis(),
             };
             return Ok(execution_response);
         }
@@ -95,7 +96,7 @@ pub fn prove_authorization(
 
 pub async fn prove_multi(
     private_key: String,
-    payload: model::ProverInputs
+    payload: model::ProverInputs,
 ) -> Result<GenerateProofResponse, model::InputError> {
     let rng = &mut thread_rng();
     let pkey = PrivateKey::<Testnet3>::from_str(&private_key).unwrap();
@@ -112,8 +113,8 @@ pub async fn prove_multi(
     // Defining a complex program with 4 transitions
     let multi_program_path = "./app/multi_txn_t1.txt".to_string();
     let alt_multi_program_path = "../app/multi_txn_t1.txt".to_string();
-    let file_content =
-        fs::read_to_string(multi_program_path).or_else(|_| fs::read_to_string(alt_multi_program_path));
+    let file_content = fs::read_to_string(multi_program_path)
+        .or_else(|_| fs::read_to_string(alt_multi_program_path));
     if file_content.is_err() {
         log::error!("{:#?}", file_content.err());
         return Err(model::InputError::FileNotFound);
@@ -123,8 +124,8 @@ pub async fn prove_multi(
 
     let helper_program_path = "./app/helper.txt".to_string();
     let alt_helper_program_path = "../app/helper.txt".to_string();
-    let file_content =
-        fs::read_to_string(helper_program_path).or_else(|_| fs::read_to_string(alt_helper_program_path));
+    let file_content = fs::read_to_string(helper_program_path)
+        .or_else(|_| fs::read_to_string(alt_helper_program_path));
     if file_content.is_err() {
         log::error!("{:#?}", file_content.err());
         return Err(model::InputError::FileNotFound);
@@ -134,8 +135,8 @@ pub async fn prove_multi(
 
     let fees_program_path = "./app/fees.txt".to_string();
     let alt_fees_program_path = "../app/fees.txt".to_string();
-    let file_content =
-        fs::read_to_string(fees_program_path).or_else(|_| fs::read_to_string(alt_fees_program_path));
+    let file_content = fs::read_to_string(fees_program_path)
+        .or_else(|_| fs::read_to_string(alt_fees_program_path));
     if file_content.is_err() {
         log::error!("{:#?}", file_content.err());
         return Err(model::InputError::FileNotFound);
@@ -159,20 +160,22 @@ pub async fn prove_multi(
     // log::info!("Received inputs: {:?}", decoded_inputs);
 
     let function = Identifier::<Testnet3>::try_from("transfer_public").unwrap();
-    let auth = process.authorize::<AleoV0,_>(
-        &pkey, 
-        program.id(), 
-        function, 
-        decoded_inputs.into_iter(),
-        rng
-    ).unwrap();
+    let auth = process
+        .authorize::<AleoV0, _>(
+            &pkey,
+            program.id(),
+            function,
+            decoded_inputs.into_iter(),
+            rng,
+        )
+        .unwrap();
 
     log::info!("Setup time: {:?}ms", setup_now.elapsed().as_millis());
 
     log::info!("Execution started...");
     let execute_now = Instant::now();
 
-    let (_result, mut trace) = process.execute::<AleoV0,_>(auth, rng).unwrap();
+    let (_result, mut trace) = process.execute::<AleoV0, _>(auth, rng).unwrap();
 
     let execute_time = execute_now.elapsed();
     log::info!("Execution time: {:?}ms", execute_time.as_millis());
@@ -182,7 +185,7 @@ pub async fn prove_multi(
     let locator = Locator::new(*program.id(), function);
     let block_store = BlockStore::<Testnet3, BlockMemory<_>>::open(None).unwrap();
     trace.prepare(Query::from(block_store)).unwrap();
-    let prove_result = trace.prove_execution::<AleoV0,_>(&locator.to_string(), rng);
+    let prove_result = trace.prove_execution::<AleoV0, _>(&locator.to_string(), rng);
 
     match prove_result {
         Ok(prove) => {
@@ -193,11 +196,12 @@ pub async fn prove_multi(
             process.verify_execution(&prove).unwrap();
             log::info!("Proof verification status : {:?}", true);
 
-            let ask_id = payload.ask_id;
             let public_inputs = payload.ask.prover_data.clone();
+            let proof_string = proof.to_string();
+            let proof_bytes = proof_string.as_bytes();
             let value = vec![
-                ethers::abi::Token::Uint(ask_id.into()),
                 ethers::abi::Token::Bytes(public_inputs.to_vec()),
+                ethers::abi::Token::Bytes(proof_bytes.to_vec()),
             ];
             let encoded = ethers::abi::encode(&value);
             let digest = ethers::utils::keccak256(encoded);
@@ -206,15 +210,15 @@ pub async fn prove_multi(
                 .sign_message(ethers::types::H256(digest))
                 .await
                 .unwrap();
-            let proof_string = proof.to_string();
-            let proof_bytes = proof_string.as_bytes();
+
             let execution_response = GenerateProofResponse {
+                input: Some(payload.ask.prover_data.clone()),
                 proof: Some(ethers::types::Bytes::from(proof_bytes.to_vec())),
                 verification_status: true,
                 signature: Some("0x".to_owned() + &signature.to_string()),
             };
-        
-            return Ok(execution_response)
+
+            return Ok(execution_response);
         }
         Err(e) => {
             println!("Error: {:?}", e);
@@ -227,9 +231,7 @@ fn get_public_inputs(decoded_pub_input: String) -> Result<Vec<String>, model::In
     use ethers::abi::{decode, ParamType};
     use ethers::prelude::*;
 
-    fn decode_input(
-        encoded_input: Bytes,
-    ) -> Result<Vec<String>, Box<dyn std::error::Error>> {
+    fn decode_input(encoded_input: Bytes) -> Result<Vec<String>, Box<dyn std::error::Error>> {
         let param_types = vec![ParamType::FixedArray(Box::new(ParamType::String), 3)];
         let tokens = decode(&param_types, &encoded_input.0)?;
 

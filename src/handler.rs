@@ -1,8 +1,6 @@
-use std::fs;
+use actix_web::{get, http::StatusCode, post, web, Responder};
 use serde_json::Value;
-use actix_web::{
-    get, post, web, Responder, http::StatusCode
-};
+use std::{fs, str::FromStr};
 
 use crate::{model, prover, response::response};
 
@@ -57,9 +55,7 @@ async fn benchmark() -> impl Responder {
 }
 
 #[post("/generateProof")]
-async fn generate_proof(
-    payload: web::Json<model::ProverInputs>
-) -> impl Responder {
+async fn generate_proof(payload: web::Json<model::ProverInputs>) -> impl Responder {
     // Fetch config
     let config_path = "./app/config.json".to_string();
     let alt_config_path = "../app/config.json".to_string();
@@ -87,11 +83,21 @@ async fn generate_proof(
 
     match prove_result {
         Ok(prove) => {
-            let proof = prove.proof.unwrap().to_string();
+            let public_inputs = prove.input.unwrap();
+            let proof_bytes = prove.proof.unwrap();
+            let signature = prove.signature.unwrap();
+            let sig_bytes = ethers::types::Bytes::from_str(&signature).unwrap();
+            let value = vec![
+                ethers::abi::Token::Bytes(public_inputs.to_vec()),
+                ethers::abi::Token::Bytes(proof_bytes.to_vec()),
+                ethers::abi::Token::Bytes(sig_bytes.to_vec()),
+            ];
+            let encoded = ethers::abi::encode(&value);
+            let data = String::from_utf8_lossy(&encoded).to_string();
             return Ok(response(
                 "Proof generated",
                 StatusCode::OK,
-                Some(Value::String(proof)),
+                Some(Value::String(data)),
             ));
         }
         Err(e) => {
