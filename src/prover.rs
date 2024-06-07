@@ -23,6 +23,7 @@ pub struct BenchmarkResponse {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct SecretInputs {
+    pub private: String,
     pub address: String,
     pub amount: String
 }
