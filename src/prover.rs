@@ -100,7 +100,7 @@ pub async fn prove_multi(
 ) -> Result<GenerateProofResponse, model::InputError> {
     let rng = &mut thread_rng();
     let pkey = PrivateKey::<Testnet3>::from_str(&private_key).unwrap();
-    let read_secp_private_key = fs::read("/app/secp.sec").unwrap();
+    let read_secp_private_key = fs::read("./app/secp.sec").unwrap();
     let secp_private_key = secp256k1::SecretKey::from_slice(&read_secp_private_key)
         .unwrap()
         .display_secret()
@@ -159,7 +159,7 @@ pub async fn prove_multi(
     let decoded_inputs = get_public_inputs(inputs.to_string()).unwrap();
     // log::info!("Received inputs: {:?}", decoded_inputs);
 
-    let function = Identifier::<Testnet3>::try_from("transfer_public").unwrap();
+    let function = Identifier::<Testnet3>::try_from("transfer_private").unwrap();
     let auth = process
         .authorize::<AleoV0, _>(
             &pkey,
@@ -175,7 +175,7 @@ pub async fn prove_multi(
     log::info!("Execution started...");
     let execute_now = Instant::now();
 
-    let (_result, mut trace) = process.execute::<AleoV0, _>(auth, rng).unwrap();
+    let (_result, mut trace) = process.execute::<AleoV0, _>(auth.clone(), rng).unwrap();
 
     let execute_time = execute_now.elapsed();
     log::info!("Execution time: {:?}ms", execute_time.as_millis());
