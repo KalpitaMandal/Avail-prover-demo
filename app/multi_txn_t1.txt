@@ -17,13 +17,13 @@ function transfer_public:
     input r2 as u64.public;
     add r1 r2 into r3;
     call helper.aleo/mint_public self.caller r3 into r4 r5;
-    call helper.aleo/verify_balance self.caller r3 into r6;
+    call helper.aleo/verify_balance self.caller into r6;
     call helper.aleo/transfer_relayer self.caller 1u64 into r7;
-    call fees.aleo/fees 1u64 4475150356817606778589882704590642323349436680698264689983438181844155595696field into r8 r9;
-    cast r0 r1 into r10 as balance.record;
-    async transfer_public r5 r6 r7 r9 self.caller r0 r1 into r11;
-    output r10 as balance.record;
-    output r11 as multi_txn_t1.aleo/transfer_public.future;
+    call fees.aleo/fees 1u64 into r8;
+    cast r0 r1 into r9 as balance.record;
+    async transfer_public r5 r6 r7 r8 self.caller r0 r1 into r10;
+    output r9 as balance.record;
+    output r10 as multi_txn_t1.aleo/transfer_public.future;
 
 finalize transfer_public:
     input r0 as helper.aleo/mint_public.future;
@@ -52,11 +52,20 @@ function transfer_private:
     assert.eq r2 2u64;
     add r1 r2 into r3;
     call helper.aleo/mint_private self.caller r3 into r4;
-    call helper.aleo/verify_balance_private r4;
-    call helper.aleo/transfer_relayer_private 1u64 r4 into r5 r6;
-    call fees.aleo/fees_private r6 1u64 into r7;
-    sub r7.amount r1 into r8;
-    cast r7.owner r8 into r9 as balance.record;
-    cast r0 r1 into r10 as balance.record;
-    output r9 as balance.record;
-    output r10 as balance.record;
+    call helper.aleo/verify_balance self.caller into r5;
+    call helper.aleo/transfer_relayer_private 1u64 r4 into r6 r7;
+    call fees.aleo/fees 1u64 into r8;
+    sub r7.amount r1 into r9;
+    sub r9 1u64 into r10;
+    cast r7.owner r10 into r11 as balance.record;
+    cast r0 r1 into r12 as balance.record;
+    async transfer_private r5 r8 into r13;
+    output r11 as balance.record;
+    output r12 as balance.record;
+    output r13 as multi_txn_t1.aleo/transfer_private.future;
+
+finalize transfer_private:
+    input r0 as helper.aleo/verify_balance.future;
+    input r1 as fees.aleo/fees.future;
+    await r0;
+    await r1;

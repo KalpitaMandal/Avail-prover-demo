@@ -79,7 +79,16 @@ async fn generate_proof(payload: web::Json<model::ProverInputs>) -> impl Respond
         payload.0.ask_id
     );
 
-    let prove_result = prover::prove_multi(config.private_key, payload.0).await;
+    let private_input = payload.clone().private_input;
+    let private_input_string = String::from_utf8(private_input).unwrap();
+    let prove_result;
+    if private_input_string == "".to_string() {
+        log::info!("Generating proof for public market");
+        prove_result = prover::prove_public(config.private_key, payload.0).await;
+    } else {
+        log::info!("Generating proof for private market");
+        prove_result = prover::prove_private(config.private_key, payload.0).await;
+    }
 
     match prove_result {
         Ok(prove) => {

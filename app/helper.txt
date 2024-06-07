@@ -32,22 +32,15 @@ finalize mint_public:
     set r3 into account[r0];
 
 
-function verify_balance_private:
-    input r0 as balance.record;
-    assert.neq r0.amount 0u64;
-
-
 function verify_balance:
     input r0 as address.public;
-    input r1 as u64.public;
-    async verify_balance r0 r1 into r2;
-    output r2 as helper.aleo/verify_balance.future;
+    async verify_balance r0 into r1;
+    output r1 as helper.aleo/verify_balance.future;
 
 finalize verify_balance:
     input r0 as address.public;
-    input r1 as u64.public;
-    get.or_use account[r0] 0u64 into r2;
-    assert.neq r2 0u64;
+    get.or_use account[r0] 0u64 into r1;
+    assert.neq r1 0u64;
 
 
 function transfer_relayer_private:
