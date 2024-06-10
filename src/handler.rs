@@ -88,11 +88,11 @@ async fn generate_proof(payload: web::Json<model::ProverInputs>) -> impl Respond
     // log::info!("Secrets input format: {:?}", private_inputs);
     let prove_result;
     if secrets == "".to_string() {
-        log::info!("Generating proof for public market");
-        prove_result = prover::prove_public(config.private_key, payload.0).await;
-    } else {
         log::info!("Generating proof for private market");
         prove_result = prover::prove_private(config.private_key, payload.0).await;
+    } else {
+        log::info!("Generating proof for public market");
+        prove_result = prover::prove_public(config.private_key, payload.0).await;
     }
 
     match prove_result {
