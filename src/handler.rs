@@ -81,8 +81,11 @@ async fn generate_proof(payload: web::Json<model::ProverInputs>) -> impl Respond
 
     let private_input = payload.clone().private_input;
     let secrets = String::from_utf8(private_input).unwrap();
+    log::info!("Secrets: {:?}", secrets);
     let value: Value = serde_json::from_str(&secrets).unwrap();
+    log::info!("Secrets Value: {:?}", value);
     let private_inputs: prover::SecretInputs = serde_json::from_value(value).unwrap();
+    log::info!("Secrets input format: {:?}", private_inputs);
     let prove_result;
     if private_inputs.private == "false".to_string() {
         log::info!("Generating proof for public market");
