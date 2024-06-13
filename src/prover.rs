@@ -4,16 +4,21 @@ use aleo_rust::{
     AleoV0, BlockMemory, BlockStore, Identifier, Locator, Query,
 };
 use ethers::signers::{LocalWallet, Signer};
-use serde::{Deserialize, Serialize};
-use serde_json::Value;
 use rand::thread_rng;
 use secp256k1;
+use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use std::{fs, str::FromStr, time::Instant};
 
 pub struct GenerateProofResponse {
     pub input: Option<ethers::types::Bytes>,
     pub proof: Option<ethers::types::Bytes>,
     pub verification_status: bool,
+    pub signature: Option<String>,
+}
+
+pub struct CheckInputResponse {
+    pub input_validity: bool,
     pub signature: Option<String>,
 }
 
@@ -25,7 +30,7 @@ pub struct BenchmarkResponse {
 pub struct SecretInputs {
     pub private: String,
     pub address: String,
-    pub amount: String
+    pub amount: String,
 }
 
 pub fn prove_authorization(private_key: String) -> Result<BenchmarkResponse, model::InputError> {
@@ -206,7 +211,7 @@ pub async fn prove_public(
             log::info!("Generated Proof: {:?}", proof.clone());
             process.verify_execution(&prove).unwrap();
             log::info!("Proof verification status : {:?}", true);
-            
+
             let proof_string = proof.to_string();
             let proof_bytes = proof_string.as_bytes();
             let value = vec![
@@ -326,18 +331,16 @@ pub async fn prove_private(
     let value: Value = serde_json::from_str(&secrets).unwrap();
     let private_inputs: SecretInputs = serde_json::from_value(value).unwrap();
 
-    let inputs = vec![private_inputs.address, private_inputs.amount, decoded_inputs[0].to_string()];
+    let inputs = vec![
+        private_inputs.address,
+        private_inputs.amount,
+        decoded_inputs[0].to_string(),
+    ];
     // log::info!("Final inputs: {:?}", inputs);
 
     let function = Identifier::<Testnet3>::try_from("transfer_private").unwrap();
     let auth = process
-        .authorize::<AleoV0, _>(
-            &pkey,
-            program.id(),
-            function,
-            inputs.into_iter(),
-            rng,
-        )
+        .authorize::<AleoV0, _>(&pkey, program.id(), function, inputs.into_iter(), rng)
         .unwrap();
 
     log::info!("Setup time: {:?}ms", setup_now.elapsed().as_millis());
@@ -367,7 +370,7 @@ pub async fn prove_private(
             log::info!("Generated Proof: {:?}", proof.clone());
             process.verify_execution(&prove).unwrap();
             log::info!("Proof verification status : {:?}", true);
-            
+
             let proof_string = proof.to_string();
             let proof_bytes = proof_string.as_bytes();
             let value = vec![
@@ -417,7 +420,9 @@ pub async fn prove_private(
     }
 }
 
-fn get_public_inputs_for_public_market(decoded_pub_input: String) -> Result<Vec<String>, model::InputError> {
+fn get_public_inputs_for_public_market(
+    decoded_pub_input: String,
+) -> Result<Vec<String>, model::InputError> {
     use ethers::abi::{decode, ParamType};
     use ethers::prelude::*;
 
@@ -452,7 +457,9 @@ fn get_public_inputs_for_public_market(decoded_pub_input: String) -> Result<Vec<
     Ok(pub_input)
 }
 
-fn get_public_inputs_for_private_market(decoded_pub_input: String) -> Result<Vec<String>, model::InputError> {
+fn get_public_inputs_for_private_market(
+    decoded_pub_input: String,
+) -> Result<Vec<String>, model::InputError> {
     use ethers::abi::{decode, ParamType};
     use ethers::prelude::*;
 
@@ -485,4 +492,118 @@ fn get_public_inputs_for_private_market(decoded_pub_input: String) -> Result<Vec
     let pub_input = serde_json::from_value(public.into()).unwrap();
 
     Ok(pub_input)
+}
+
+pub async fn check_public(
+    payload: model::ProverInputs,
+    signature_needed: bool,
+) -> Result<CheckInputResponse, model::InputError> {
+    let public_inputs = hex::encode(payload.ask.prover_data.clone());
+    let decoded_inputs = get_public_inputs_for_public_market(public_inputs.to_string());
+    if signature_needed {
+        let read_secp_private_key = fs::read("/app/secp.sec").unwrap();
+        let secp_private_key = secp256k1::SecretKey::from_slice(&read_secp_private_key)
+            .unwrap()
+            .display_secret()
+            .to_string();
+        let signer_wallet = secp_private_key.parse::<LocalWallet>().unwrap();
+        let ask_id = payload.ask_id;
+        let value = vec![
+            ethers::abi::Token::Uint(ask_id.into()),
+            ethers::abi::Token::Bytes(payload.ask.prover_data.to_vec()),
+        ];
+        let encoded = ethers::abi::encode(&value);
+        let digest = ethers::utils::keccak256(encoded);
+
+        let signature = signer_wallet
+            .sign_message(ethers::types::H256(digest))
+            .await
+            .unwrap();
+        match decoded_inputs {
+            Ok(_result) => {
+                let check_result = CheckInputResponse {
+                    input_validity: true,
+                    signature: Some(signature.to_string()),
+                };
+                return Ok(check_result);
+            }
+            Err(_) => {
+                let check_result = CheckInputResponse {
+                    input_validity: false,
+                    signature: Some(signature.to_string()),
+                };
+                return Ok(check_result);
+            }
+        }
+    } else {
+        match decoded_inputs {
+            Ok(_result) => {
+                let check_result = CheckInputResponse {
+                    input_validity: true,
+                    signature: None,
+                };
+                return Ok(check_result);
+            }
+            Err(_) => {
+                return Err(model::InputError::InvalidInputs);
+            }
+        }
+    }
+}
+
+pub async fn check_private(
+    payload: model::ProverInputs,
+    signature_needed: bool,
+) -> Result<CheckInputResponse, model::InputError> {
+    let public_inputs = hex::encode(payload.ask.prover_data.clone());
+    let decoded_inputs = get_public_inputs_for_private_market(public_inputs.to_string());
+    if signature_needed {
+        let read_secp_private_key = fs::read("/app/secp.sec").unwrap();
+        let secp_private_key = secp256k1::SecretKey::from_slice(&read_secp_private_key)
+            .unwrap()
+            .display_secret()
+            .to_string();
+        let signer_wallet = secp_private_key.parse::<LocalWallet>().unwrap();
+        let ask_id = payload.ask_id;
+        let value = vec![
+            ethers::abi::Token::Uint(ask_id.into()),
+            ethers::abi::Token::Bytes(payload.ask.prover_data.to_vec()),
+        ];
+        let encoded = ethers::abi::encode(&value);
+        let digest = ethers::utils::keccak256(encoded);
+
+        let signature = signer_wallet
+            .sign_message(ethers::types::H256(digest))
+            .await
+            .unwrap();
+        match decoded_inputs {
+            Ok(_result) => {
+                let check_result = CheckInputResponse {
+                    input_validity: true,
+                    signature: Some(signature.to_string()),
+                };
+                return Ok(check_result);
+            }
+            Err(_) => {
+                let check_result = CheckInputResponse {
+                    input_validity: false,
+                    signature: Some(signature.to_string()),
+                };
+                return Ok(check_result);
+            }
+        }
+    } else {
+        match decoded_inputs {
+            Ok(_result) => {
+                let check_result = CheckInputResponse {
+                    input_validity: true,
+                    signature: None,
+                };
+                return Ok(check_result);
+            }
+            Err(_) => {
+                return Err(model::InputError::InvalidInputs);
+            }
+        }
+    }
 }

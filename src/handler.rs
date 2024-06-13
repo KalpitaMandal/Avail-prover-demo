@@ -129,7 +129,7 @@ async fn generate_proof(payload: web::Json<model::ProverInputs>) -> impl Respond
                     StatusCode::BAD_REQUEST,
                     Some(Value::String(encoded_bytes.to_string())),
                 ));
-            }   
+            }
         }
         Err(e) => {
             response(
@@ -142,11 +142,114 @@ async fn generate_proof(payload: web::Json<model::ProverInputs>) -> impl Respond
     }
 }
 
+#[post("/checkInput")]
+async fn check_input(payload: web::Json<model::ProverInputs>) -> impl Responder {
+    let private_input = payload.clone().private_input;
+    let secrets = String::from_utf8(private_input).unwrap();
+    let value: Value = serde_json::from_str(&secrets).unwrap();
+    let private_inputs:Result<prover::SecretInputs, serde_json::Error> = serde_json::from_value(value);
+    match private_inputs {
+        Ok(private) => {
+            let input_format_result;
+            if private.private == "false".to_string() {
+                log::info!("Checking input format for public market");
+                input_format_result = prover::check_public(payload.0, false).await;
+            } else {
+                log::info!("Checking input format for private market");
+                input_format_result = prover::check_private(payload.0, false).await;
+            }
+
+            match input_format_result {
+                Ok(verified) => {
+                    if verified.input_validity {
+                        return Ok(response("Payload is valid", StatusCode::OK, None));
+                    } else {
+                        return Ok(response("Payload is NOT valid", StatusCode::OK, None));
+                    }
+                }
+                Err(e) => {
+                    response(
+                        "There was an error validating public inputs",
+                        StatusCode::NOT_IMPLEMENTED,
+                        None,
+                    );
+                    return Err(e);
+                }
+            }
+        }
+        Err(_) => {
+            response(
+                "The private inputs are invalid",
+                StatusCode::BAD_REQUEST,
+                None,
+            );
+            return Err(model::InputError::InvalidInputs);
+        }
+    }
+}
+
+#[post("/checkInputWithSignature")]
+async fn check_input_with_signature(payload: web::Json<model::ProverInputs>) -> impl Responder {
+    let private_input = payload.clone().private_input;
+    let secrets = String::from_utf8(private_input).unwrap();
+    let value: Value = serde_json::from_str(&secrets).unwrap();
+    let private_inputs:Result<prover::SecretInputs, serde_json::Error> = serde_json::from_value(value);
+    match private_inputs {
+        Ok(private) => {
+            let input_format_result;
+            if private.private == "false".to_string() {
+                log::info!("Checking input format with signature for public market");
+                input_format_result = prover::check_public(payload.0, true).await;
+            } else {
+                log::info!("Checking input format with signature for private market");
+                input_format_result = prover::check_private(payload.0, true).await;
+            }
+
+            match input_format_result {
+                Ok(verified) => {
+                    let signature = verified.signature;
+                    if verified.input_validity {
+                        return Ok(response(
+                            "Payload is valid",
+                            StatusCode::OK,
+                            Some(Value::String(signature.unwrap().to_string())),
+                        ));
+                    } else {
+                        return Ok(response(
+                            "Payload is NOT valid",
+                            StatusCode::OK,
+                            Some(Value::String(signature.unwrap().to_string())),
+                        ));
+                    }
+                }
+                Err(e) => {
+                    response(
+                        "There was an error validating public inputs",
+                        StatusCode::NOT_IMPLEMENTED,
+                        None,
+                    );
+                    return Err(e);
+                }
+            }
+        }
+        Err(_) => {
+            response(
+                "The private inputs are invalid",
+                StatusCode::BAD_REQUEST,
+                None,
+            );
+            return Err(model::InputError::InvalidInputs);
+        }
+    }
+}
+
 // Routes
 pub fn routes(conf: &mut web::ServiceConfig) {
     let scope = web::scope("/api")
         .service(test)
         .service(benchmark)
-        .service(generate_proof);
+        .service(generate_proof)
+        .service(check_input)
+        .service(check_input_with_signature);
     conf.service(scope);
 }
