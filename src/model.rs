@@ -14,6 +14,13 @@ pub struct ProverInputs {
     pub ask_id: u64,
 }
 
+#[derive(Serialize, Debug, Deserialize, Clone)]
+pub struct ProveAuthInputs {
+    pub ask: Ask,
+    pub auth: Vec<u8>,
+    pub ask_id: u64,
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ProverConfig {
     pub private_key: String,

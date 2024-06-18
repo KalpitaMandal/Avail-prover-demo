@@ -97,9 +97,9 @@ async fn generate_proof(payload: web::Json<model::ProverInputs>) -> impl Respond
 
     match prove_result {
         Ok(prove) => {
-            if prove.proof.is_some() {
+            if prove.execution.is_some() {
                 let public_inputs = prove.input.unwrap();
-                let proof_bytes = prove.proof.unwrap();
+                let proof_bytes = prove.execution.unwrap();
                 let signature = prove.signature.unwrap();
                 let sig_bytes = ethers::types::Bytes::from_str(&signature).unwrap();
                 let value = vec![

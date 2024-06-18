@@ -1,7 +1,7 @@
 use crate::model;
 use aleo_rust::{
     snarkvm_types::{PrivateKey, Process, Program, Testnet3},
-    AleoV0, BlockMemory, BlockStore, Identifier, Locator, Query,
+    AleoV0, BlockMemory, BlockStore, Identifier, Locator, Query
 };
 use ethers::signers::{LocalWallet, Signer};
 use serde::{Deserialize, Serialize};
@@ -12,7 +12,7 @@ use std::{fs, str::FromStr, time::Instant};
 
 pub struct GenerateProofResponse {
     pub input: Option<ethers::types::Bytes>,
-    pub proof: Option<ethers::types::Bytes>,
+    pub execution: Option<ethers::types::Bytes>,
     pub verification_status: bool,
     pub signature: Option<String>,
 }
@@ -223,7 +223,7 @@ pub async fn prove_public(
 
             let execution_response = GenerateProofResponse {
                 input: Some(payload.ask.prover_data.clone()),
-                proof: Some(ethers::types::Bytes::from(proof_bytes.to_vec())),
+                execution: Some(ethers::types::Bytes::from(prove.to_string().as_bytes().to_vec())),
                 verification_status: true,
                 signature: Some("0x".to_owned() + &signature.to_string()),
             };
@@ -247,7 +247,7 @@ pub async fn prove_public(
 
             let execution_response = GenerateProofResponse {
                 input: Some(payload.ask.prover_data.clone()),
-                proof: None,
+                execution: None,
                 verification_status: false,
                 signature: Some("0x".to_owned() + &signature.to_string()),
             };
@@ -384,7 +384,7 @@ pub async fn prove_private(
 
             let execution_response = GenerateProofResponse {
                 input: Some(payload.ask.prover_data.clone()),
-                proof: Some(ethers::types::Bytes::from(proof_bytes.to_vec())),
+                execution: Some(ethers::types::Bytes::from(prove.to_string().as_bytes().to_vec())),
                 verification_status: true,
                 signature: Some("0x".to_owned() + &signature.to_string()),
             };
@@ -408,7 +408,7 @@ pub async fn prove_private(
 
             let execution_response = GenerateProofResponse {
                 input: Some(payload.ask.prover_data.clone()),
-                proof: None,
+                execution: None,
                 verification_status: false,
                 signature: Some("0x".to_owned() + &signature.to_string()),
             };
@@ -486,3 +486,102 @@ fn get_public_inputs_for_private_market(decoded_pub_input: String) -> Result<Vec
 
     Ok(pub_input)
 }
+
+// pub async fn prove_auth(
+//     payload: model::ProveAuthInputs
+// ) -> Result<ExecutionResponse, model::InputError> {
+//     let rng = &mut thread_rng();
+//     let read_secp_private_key = fs::read("./app/secp.sec").unwrap();
+//     let secp_private_key = secp256k1::SecretKey::from_slice(&read_secp_private_key)
+//         .unwrap()
+//         .display_secret()
+//         .to_string();
+//     let signer_wallet = secp_private_key.parse::<LocalWallet>().unwrap();
+
+//     // initializing a new process
+//     let mut process: Process<Testnet3> = Process::load().unwrap();
+
+//     let auth_input = payload.clone().auth;
+//     let secrets = String::from_utf8(auth_input).unwrap();
+//     log::info!("Secrets: {:?}", secrets);
+//     let value: Value = serde_json::from_str(&secrets).unwrap();
+//     log::info!("Secrets Value: {:?}", value);
+//     let private_inputs = serde_json::from_value(value).unwrap();
+//     log::info!("Secrets input format: {:?}", private_inputs);
+
+//     log::info!("Execution started...");
+//     let execute_now = Instant::now();
+
+//     let (_result, mut trace) = process.execute::<AleoV0, _>(private_inputs.clone(), rng).unwrap();
+
+//     let execute_time = execute_now.elapsed();
+//     log::info!("Execution time: {:?}ms", execute_time.as_millis());
+//     log::info!("Proof generation started...");
+//     let prove_now = Instant::now();
+
+//     let function = Identifier::<Testnet3>::try_from("transfer_public").unwrap();
+//     let locator = Locator::new(*program.id(), function);
+//     let block_store = BlockStore::<Testnet3, BlockMemory<_>>::open(None).unwrap();
+//     trace.prepare(Query::from(block_store)).unwrap();
+//     let prove_result = trace.prove_execution::<AleoV0, _>(&locator.to_string(), rng);
+
+//     let public_inputs = payload.ask.prover_data.clone();
+
+//     match prove_result {
+//         Ok(prove) => {
+//             log::info!("Prove result: {:?}", prove);
+//             let prove_time = prove_now.elapsed();
+//             log::info!("Proof generation time: {:?}ms", prove_time.as_millis());
+//             let proof: &aleo_rust::Proof<Testnet3> = prove.proof().unwrap();
+//             log::info!("Generated Proof: {:?}", proof.clone());
+//             process.verify_execution(&prove).unwrap();
+//             log::info!("Proof verification status : {:?}", true);
+            
+//             let proof_string = proof.to_string();
+//             let proof_bytes = proof_string.as_bytes();
+//             let value = vec![
+//                 ethers::abi::Token::Bytes(public_inputs.to_vec()),
+//                 ethers::abi::Token::Bytes(prove.to_string().as_bytes().to_vec()),
+//             ];
+//             let encoded = ethers::abi::encode(&value);
+//             let digest = ethers::utils::keccak256(encoded);
+
+//             let signature = signer_wallet
+//                 .sign_message(ethers::types::H256(digest))
+//                 .await
+//                 .unwrap();
+
+//             let execution_response = ExecutionResponse {
+//                 input: Some(payload.ask.prover_data.clone()),
+//                 execution: Some(ethers::types::Bytes::from(prove.to_string().as_bytes().to_vec())),
+//                 verification_status: true,
+//                 signature: Some("0x".to_owned() + &signature.to_string()),
+//             };
+
+//             return Ok(execution_response);
+//         }
+//         Err(e) => {
+//             println!("Error: {:?}", e);
+//             let ask_id = payload.ask_id;
+//             let value = vec![
+//                 ethers::abi::Token::Uint(ask_id.into()),
+//                 ethers::abi::Token::Bytes(public_inputs.to_vec()),
+//             ];
+//             let encoded = ethers::abi::encode(&value);
+//             let digest = ethers::utils::keccak256(encoded);
+
+//             let signature = signer_wallet
+//                 .sign_message(ethers::types::H256(digest))
+//                 .await
+//                 .unwrap();
+
+//             let execution_response = ExecutionResponse {
+//                 input: Some(payload.ask.prover_data.clone()),
+//                 execution: None,
+//                 verification_status: false,
+//                 signature: Some("0x".to_owned() + &signature.to_string()),
+//             };
+//             return Ok(execution_response);
+//         }
+//     }
+// }
