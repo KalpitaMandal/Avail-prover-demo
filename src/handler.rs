@@ -1,7 +1,7 @@
 use actix_web::{get, http::StatusCode, post, web, Responder};
 use aleo_rust::Testnet3;
 use snarkvm_synthesizer::Authorization;
-use serde_json::Value;
+use serde_json::{Value, Error};
 use std::{fs, str::FromStr};
 
 use crate::{model, prover, response::response};
@@ -15,13 +15,26 @@ async fn test() -> impl Responder {
 #[get("/benchmark")]
 async fn benchmark() -> impl Responder {
     // Fetch authorization
-    let auth_path = "./Auth_benchmark.json".to_string();
-    let auth_file_content = fs::read_to_string(auth_path).unwrap();
-    let auth_value: Value = serde_json::from_str(&auth_file_content).unwrap();
-    let authorization_structure: Authorization<Testnet3> = serde_json::from_value(auth_value).unwrap();
+    let auth_path = "./app/auth_test.txt".to_string();
+    let alt_auth_path = "../app/auth_test.txt".to_string();
+    let file_content = fs::read_to_string(auth_path)
+        .or_else(|_| fs::read_to_string(alt_auth_path));
+
+    if file_content.is_err() {
+        log::error!("{:#?}", file_content.err());
+        return Err(model::InputError::FileNotFound);
+    }
+
+    let auth_value: Value = serde_json::from_str(&file_content.unwrap()).unwrap();
+    let authorization_structure: Result<Authorization<Testnet3>, Error> = serde_json::from_value(auth_value);
+
+    if authorization_structure.is_err() {
+        log::error!("{:#?}", authorization_structure.err());
+        return Err(model::InputError::InvalidInputs);
+    }
     
     log::info!("Printing benchmarks for the avail prover");
-    let benchmark_proof_generation = prover::prove_authorization(authorization_structure);
+    let benchmark_proof_generation = prover::prove_authorization(authorization_structure.unwrap());
 
     match benchmark_proof_generation {
         Ok(benchmarks) => {

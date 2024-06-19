@@ -6,7 +6,7 @@ use aleo_rust::{
 use snarkvm_synthesizer::Authorization;
 use ethers::signers::{LocalWallet, Signer};
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
+use serde_json::{Value, Error};
 use rand::thread_rng;
 use secp256k1;
 use std::{fs, str::FromStr, time::Instant};
@@ -105,7 +105,7 @@ pub async fn prove_auth(
     payload: model::ProveAuthInputs
 ) -> Result<GenerateProofResponse, model::InputError> {
     let rng = &mut thread_rng();
-    let read_secp_private_key = fs::read("./app/secp.sec").unwrap();
+    let read_secp_private_key = fs::read("/app/secp.sec").unwrap();
     let secp_private_key = secp256k1::SecretKey::from_slice(&read_secp_private_key)
         .unwrap()
         .display_secret()
@@ -159,7 +159,12 @@ pub async fn prove_auth(
     let auth_input = payload.clone().auth;
     let secrets = String::from_utf8(auth_input).unwrap();
     let value: Value = serde_json::from_str(&secrets).unwrap();
-    let authorization: Authorization<Testnet3> = serde_json::from_value(value).unwrap();
+    let authorization_structure: Result<Authorization<Testnet3>, Error> = serde_json::from_value(value);
+    if authorization_structure.is_err() {
+        log::error!("{:#?}", authorization_structure.err());
+        return Err(model::InputError::InvalidInputs);
+    }
+    let authorization = authorization_structure.unwrap();
     let auth_transitions = authorization.clone().transitions();
 
     let function = auth_transitions.last().unwrap().1.function_name();
