@@ -5,7 +5,6 @@ use aleo_rust::{
 };
 use snarkvm_synthesizer::Authorization;
 use ethers::signers::{LocalWallet, Signer};
-use serde::{Deserialize, Serialize};
 use serde_json::{Value, Error};
 use rand::thread_rng;
 use secp256k1;
@@ -20,19 +19,6 @@ pub struct GenerateProofResponse {
 
 pub struct BenchmarkResponse {
     pub proof_generation_time: u128,
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct SecretInputs {
-    pub private: String,
-    pub address: String,
-    pub amount: String
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct AuthInputs {
-    pub private: String,
-    pub auth: Vec<u8>
 }
 
 pub fn prove_authorization(auth: Authorization<Testnet3>) -> Result<BenchmarkResponse, model::InputError> {
@@ -156,7 +142,7 @@ pub async fn prove_auth(
     let check_program = process.contains_program(program.id());
     assert!(check_program);
 
-    let auth_input = payload.clone().auth;
+    let auth_input = payload.clone().private_input;
     let secrets = String::from_utf8(auth_input).unwrap();
     let value: Value = serde_json::from_str(&secrets).unwrap();
     let authorization_structure: Result<Authorization<Testnet3>, Error> = serde_json::from_value(value);

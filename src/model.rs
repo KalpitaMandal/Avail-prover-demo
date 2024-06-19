@@ -8,24 +8,10 @@ use derive_more::{Display, Error};
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Debug, Deserialize, Clone)]
-pub struct ProverInputs {
+pub struct ProveAuthInputs {
     pub ask: Ask,
     pub private_input: Vec<u8>,
     pub ask_id: u64,
-}
-
-#[derive(Serialize, Debug, Deserialize, Clone)]
-pub struct ProveAuthInputs {
-    pub ask: Ask,
-    pub auth: Vec<u8>,
-    pub ask_id: u64,
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct ProverConfig {
-    pub private_key: String,
-    pub query_url: String,
-    pub secret: String,
 }
 
 #[derive(Debug, Display, Error)]
