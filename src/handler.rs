@@ -1,4 +1,6 @@
 use actix_web::{get, http::StatusCode, post, web, Responder};
+use aleo_rust::Testnet3;
+use snarkvm_synthesizer::Authorization;
 use serde_json::Value;
 use std::{fs, str::FromStr};
 
@@ -12,27 +14,14 @@ async fn test() -> impl Responder {
 
 #[get("/benchmark")]
 async fn benchmark() -> impl Responder {
-    // Fetch config
-    let config_path = "./app/config.json".to_string();
-    let alt_config_path = "../app/config.json".to_string();
-    let file_content =
-        fs::read_to_string(config_path).or_else(|_| fs::read_to_string(alt_config_path));
-    if file_content.is_err() {
-        log::error!("{:#?}", file_content.err());
-        return Err(model::InputError::FileNotFound);
-    }
-
-    let config: model::ProverConfig = match serde_json::from_str(&file_content.unwrap()) {
-        Ok(data) => data,
-        Err(err) => {
-            log::error!("{}", err);
-            return Err(model::InputError::BadConfigData);
-        }
-    };
-
+    // Fetch authorization
+    let auth_path = "./Auth_benchmark.json".to_string();
+    let auth_file_content = fs::read_to_string(auth_path).unwrap();
+    let auth_value: Value = serde_json::from_str(&auth_file_content).unwrap();
+    let authorization_structure: Authorization<Testnet3> = serde_json::from_value(auth_value).unwrap();
+    
     log::info!("Printing benchmarks for the avail prover");
-
-    let benchmark_proof_generation = prover::prove_authorization(config.private_key);
+    let benchmark_proof_generation = prover::prove_authorization(authorization_structure);
 
     match benchmark_proof_generation {
         Ok(benchmarks) => {
@@ -55,45 +44,13 @@ async fn benchmark() -> impl Responder {
 }
 
 #[post("/generateProof")]
-async fn generate_proof(payload: web::Json<model::ProverInputs>) -> impl Responder {
-    // Fetch config
-    let config_path = "./app/config.json".to_string();
-    let alt_config_path = "../app/config.json".to_string();
-    let file_content =
-        fs::read_to_string(config_path).or_else(|_| fs::read_to_string(alt_config_path));
-    if file_content.is_err() {
-        log::error!("{:#?}", file_content.err());
-        return Err(model::InputError::FileNotFound);
-    }
-
-    let config: model::ProverConfig = match serde_json::from_str(&file_content.unwrap()) {
-        Ok(data) => data,
-        Err(err) => {
-            log::error!("{}", err);
-            return Err(model::InputError::BadConfigData);
-        }
-    };
-
+async fn generate_proof(payload: web::Json<model::ProveAuthInputs>) -> impl Responder {
     log::info!(
         "Request received by the avail prover for ask ID : {}",
         payload.0.ask_id
     );
 
-    let private_input = payload.clone().private_input;
-    let secrets = String::from_utf8(private_input).unwrap();
-    log::info!("Secrets: {:?}", secrets);
-    let value: Value = serde_json::from_str(&secrets).unwrap();
-    log::info!("Secrets Value: {:?}", value);
-    let private_inputs: prover::SecretInputs = serde_json::from_value(value).unwrap();
-    log::info!("Secrets input format: {:?}", private_inputs);
-    let prove_result;
-    if private_inputs.private == "false".to_string() {
-        log::info!("Generating proof for public market");
-        prove_result = prover::prove_public(config.private_key, payload.0).await;
-    } else {
-        log::info!("Generating proof for private market");
-        prove_result = prover::prove_private(config.private_key, payload.0).await;
-    }
+    let prove_result = prover::prove_auth(payload.0).await;
 
     match prove_result {
         Ok(prove) => {
