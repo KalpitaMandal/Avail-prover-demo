@@ -183,11 +183,9 @@ pub async fn prove_auth(
             process.verify_execution(&prove).unwrap();
             log::info!("Proof verification status : {:?}", true);
             
-            let proof_string = proof.to_string();
-            let proof_bytes = proof_string.as_bytes();
             let value = vec![
                 ethers::abi::Token::Bytes(public_inputs.to_vec()),
-                ethers::abi::Token::Bytes(proof_bytes.to_vec()),
+                ethers::abi::Token::Bytes(prove.to_string().as_bytes().to_vec()),
             ];
             let encoded = ethers::abi::encode(&value);
             let digest = ethers::utils::keccak256(encoded);
@@ -199,7 +197,7 @@ pub async fn prove_auth(
 
             let execution_response = GenerateProofResponse {
                 input: Some(ethers::types::Bytes::from(public_inputs.to_vec())),
-                execution: Some(ethers::types::Bytes::from(proof_bytes.to_vec())),
+                execution: Some(ethers::types::Bytes::from(prove.to_string().as_bytes().to_vec())),
                 verification_status: true,
                 signature: Some("0x".to_owned() + &signature.to_string()),
             };
