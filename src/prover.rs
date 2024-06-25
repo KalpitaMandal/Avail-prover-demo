@@ -198,8 +198,8 @@ pub async fn prove_auth(
                 .unwrap();
 
             let execution_response = GenerateProofResponse {
-                input: Some(payload.ask.prover_data.clone()),
-                execution: Some(ethers::types::Bytes::from(prove.to_string().as_bytes().to_vec())),
+                input: Some(ethers::types::Bytes::from(public_inputs.to_vec())),
+                execution: Some(ethers::types::Bytes::from(proof_bytes.to_vec())),
                 verification_status: true,
                 signature: Some("0x".to_owned() + &signature.to_string()),
             };
