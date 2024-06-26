@@ -67,7 +67,7 @@ async fn generate_proof(payload: web::Json<model::ProveAuthInputs>) -> impl Resp
 
     match prove_result {
         Ok(prove) => {
-            if prove.execution.is_some() {
+            if prove.execution.is_some() && prove.signature.is_some() {
                 let public_inputs = prove.input.unwrap();
                 let proof_bytes = prove.execution.unwrap();
                 let signature = prove.signature.unwrap();
@@ -84,7 +84,7 @@ async fn generate_proof(payload: web::Json<model::ProveAuthInputs>) -> impl Resp
                     StatusCode::OK,
                     Some(Value::String(encoded_bytes.to_string())),
                 ));
-            } else {
+            } else if prove.execution.is_none() && prove.signature.is_some() {
                 let public_inputs = prove.input.unwrap();
                 let signature = prove.signature.unwrap();
                 let sig_bytes = ethers::types::Bytes::from_str(&signature).unwrap();
@@ -95,18 +95,19 @@ async fn generate_proof(payload: web::Json<model::ProveAuthInputs>) -> impl Resp
                 let encoded = ethers::abi::encode(&value);
                 let encoded_bytes: ethers::types::Bytes = encoded.into();
                 return Ok(response(
-                    "Proof NOT generated",
+                    "Invalid inputs received, signature generated",
                     StatusCode::BAD_REQUEST,
                     Some(Value::String(encoded_bytes.to_string())),
                 ));
-            }   
+            } else {
+                return Ok(response(
+                    "There was an issue while generating the proof.",
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    None,
+                ));
+            }
         }
         Err(e) => {
-            response(
-                "There was an issue while generating the proof.",
-                StatusCode::INTERNAL_SERVER_ERROR,
-                None,
-            );
             return Err(e);
         }
     }
