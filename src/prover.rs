@@ -249,5 +249,5 @@ async fn invalid_input_response(ask_id: u64, public_inputs: Bytes) -> GeneratePr
         signature: Some("0x".to_owned() + &signature.to_string()),
     };
 
-    execution_response
+    return execution_response;
 }

@@ -85,19 +85,19 @@ async fn generate_proof(payload: web::Json<model::ProveAuthInputs>) -> impl Resp
                     Some(Value::String(encoded_bytes.to_string())),
                 ));
             } else if prove.execution.is_none() && prove.signature.is_some() {
-                let public_inputs = prove.input.unwrap();
+                // let public_inputs = prove.input.unwrap();
                 let signature = prove.signature.unwrap();
-                let sig_bytes = ethers::types::Bytes::from_str(&signature).unwrap();
-                let value = vec![
-                    ethers::abi::Token::Bytes(public_inputs.to_vec()),
-                    ethers::abi::Token::Bytes(sig_bytes.to_vec()),
-                ];
-                let encoded = ethers::abi::encode(&value);
-                let encoded_bytes: ethers::types::Bytes = encoded.into();
+                // let sig_bytes = ethers::types::Bytes::from_str(&signature).unwrap();
+                // let value = vec![
+                //     ethers::abi::Token::Bytes(public_inputs.to_vec()),
+                //     ethers::abi::Token::Bytes(sig_bytes.to_vec()),
+                // ];
+                // let encoded = ethers::abi::encode(&value);
+                // let encoded_bytes: ethers::types::Bytes = encoded.into();
                 return Ok(response(
                     "Invalid inputs received, signature generated",
                     StatusCode::BAD_REQUEST,
-                    Some(Value::String(encoded_bytes.to_string())),
+                    Some(Value::String(signature)),
                 ));
             } else {
                 return Ok(response(
