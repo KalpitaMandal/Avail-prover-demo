@@ -1,14 +1,14 @@
 use crate::model;
 use aleo_rust::{
     snarkvm_types::{Process, Program, Testnet3},
-    AleoV0, BlockMemory, BlockStore, Locator, Query
+    AleoV0, BlockMemory, BlockStore, Locator, Query,
 };
-use snarkvm_synthesizer::Authorization;
 use ethers::signers::{LocalWallet, Signer};
 use ethers::types::Bytes;
-use serde_json::{Value, Error};
 use rand::thread_rng;
 use secp256k1;
+use serde_json::{Error, Value};
+use snarkvm_synthesizer::Authorization;
 use std::{fs, str::FromStr, time::Instant};
 
 pub struct GenerateProofResponse {
@@ -22,7 +22,9 @@ pub struct BenchmarkResponse {
     pub proof_generation_time: u128,
 }
 
-pub fn prove_authorization(auth: Authorization<Testnet3>) -> Result<BenchmarkResponse, model::InputError> {
+pub fn prove_authorization(
+    auth: Authorization<Testnet3>,
+) -> Result<BenchmarkResponse, model::InputError> {
     let rng = &mut thread_rng();
     log::info!("Setup for proof generation started...");
     let setup_now = Instant::now();
@@ -51,7 +53,11 @@ pub fn prove_authorization(auth: Authorization<Testnet3>) -> Result<BenchmarkRes
 
     let program_id = authorization.last().unwrap().1.program_id();
     let function = authorization.last().unwrap().1.function_name();
-    log::info!("Executing function {:?} from program {:?}", function, program_id);
+    log::info!(
+        "Executing function {:?} from program {:?}",
+        function,
+        program_id
+    );
 
     log::info!("Setup time: {:?}ms", setup_now.elapsed().as_millis());
     log::info!("Execution started...");
@@ -89,7 +95,7 @@ pub fn prove_authorization(auth: Authorization<Testnet3>) -> Result<BenchmarkRes
 }
 
 pub async fn prove_auth(
-    payload: model::ProveAuthInputs
+    payload: model::ProveAuthInputs,
 ) -> Result<GenerateProofResponse, model::InputError> {
     let rng = &mut thread_rng();
     let read_secp_private_key = fs::read("/app/secp.sec").unwrap();
@@ -148,7 +154,8 @@ pub async fn prove_auth(
     let value: Value = serde_json::from_str(&secrets).unwrap();
     let public_inputs = payload.ask.prover_data.clone();
     let ask_id = payload.ask_id;
-    let authorization_structure: Result<Authorization<Testnet3>, Error> = serde_json::from_value(value);
+    let authorization_structure: Result<Authorization<Testnet3>, Error> =
+        serde_json::from_value(value);
     if authorization_structure.is_err() {
         let generator_response = invalid_input_response(ask_id, public_inputs).await;
         return Ok(generator_response);
@@ -158,12 +165,18 @@ pub async fn prove_auth(
 
     let function = auth_transitions.last().unwrap().1.function_name();
     let program_id = auth_transitions.last().unwrap().1.program_id();
-    log::info!("Executing function {:?} from program {:?}", function, program_id);
+    log::info!(
+        "Executing function {:?} from program {:?}",
+        function,
+        program_id
+    );
 
     log::info!("Execution started...");
     let execute_now = Instant::now();
 
-    let (_result, mut trace) = process.execute::<AleoV0, _>(authorization.clone(), rng).unwrap();
+    let (_result, mut trace) = process
+        .execute::<AleoV0, _>(authorization.clone(), rng)
+        .unwrap();
 
     let execute_time = execute_now.elapsed();
     log::info!("Execution time: {:?}ms", execute_time.as_millis());
@@ -183,7 +196,7 @@ pub async fn prove_auth(
             log::info!("Generated Proof: {:?}", proof.clone());
             process.verify_execution(&prove).unwrap();
             log::info!("Proof verification status : {:?}", true);
-            
+
             let value = vec![
                 ethers::abi::Token::Bytes(public_inputs.to_vec()),
                 ethers::abi::Token::Bytes(prove.to_string().as_bytes().to_vec()),
@@ -198,7 +211,9 @@ pub async fn prove_auth(
 
             let execution_response = GenerateProofResponse {
                 input: Some(ethers::types::Bytes::from(public_inputs.to_vec())),
-                execution: Some(ethers::types::Bytes::from(prove.to_string().as_bytes().to_vec())),
+                execution: Some(ethers::types::Bytes::from(
+                    prove.to_string().as_bytes().to_vec(),
+                )),
                 verification_status: true,
                 signature: Some("0x".to_owned() + &signature.to_string()),
             };
@@ -219,10 +234,7 @@ pub async fn prove_auth(
 }
 
 async fn invalid_input_response(ask_id: u64, public_inputs: Bytes) -> GenerateProofResponse {
-    log::info!(
-        "Invalid inputs received for ask ID : {}",
-        ask_id
-    );
+    log::info!("Invalid inputs received for ask ID : {}", ask_id);
     let read_secp_private_key = fs::read("/app/secp.sec").unwrap();
     let secp_private_key = secp256k1::SecretKey::from_slice(&read_secp_private_key)
         .unwrap()
