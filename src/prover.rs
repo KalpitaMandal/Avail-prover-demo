@@ -1,7 +1,7 @@
 use crate::model;
 use aleo_rust::{
     snarkvm_types::{Process, Program, Testnet3},
-    AleoV0, BlockMemory, BlockStore, Locator, Query,
+    AleoV0, BlockMemory, BlockStore, Locator, Query, Execution,
 };
 use ethers::signers::{LocalWallet, Signer};
 use ethers::types::Bytes;
@@ -98,7 +98,7 @@ pub async fn prove_auth(
     payload: model::ProveAuthInputs,
 ) -> Result<GenerateProofResponse, model::InputError> {
     let rng = &mut thread_rng();
-    let read_secp_private_key = fs::read("/app/secp.sec").unwrap();
+    let read_secp_private_key = fs::read("./app/secp.sec").unwrap();
     let secp_private_key = secp256k1::SecretKey::from_slice(&read_secp_private_key)
         .unwrap()
         .display_secret()
@@ -233,9 +233,76 @@ pub async fn prove_auth(
     }
 }
 
+pub async fn verify_execution_proof(payload: Execution<Testnet3>) -> Result<bool, model::InputError> {
+    let rng = &mut thread_rng();
+    // Defining a complex program with 4 transitions
+    let multi_program_path = "./app/multi_txn_t1.txt".to_string();
+    let alt_multi_program_path = "../app/multi_txn_t1.txt".to_string();
+    let file_content = fs::read_to_string(multi_program_path)
+        .or_else(|_| fs::read_to_string(alt_multi_program_path));
+    if file_content.is_err() {
+        log::error!("{:#?}", file_content.err());
+        return Err(model::InputError::FileNotFound);
+    }
+    let test_program = file_content.unwrap();
+    let program = Program::from_str(&test_program).unwrap();
+
+    let helper_program_path = "./app/helper.txt".to_string();
+    let alt_helper_program_path = "../app/helper.txt".to_string();
+    let file_content = fs::read_to_string(helper_program_path)
+        .or_else(|_| fs::read_to_string(alt_helper_program_path));
+    if file_content.is_err() {
+        log::error!("{:#?}", file_content.err());
+        return Err(model::InputError::FileNotFound);
+    }
+    let im_1 = file_content.unwrap();
+    let im_program_1 = Program::from_str(&im_1).unwrap();
+
+    let fees_program_path = "./app/fees.txt".to_string();
+    let alt_fees_program_path = "../app/fees.txt".to_string();
+    let file_content = fs::read_to_string(fees_program_path)
+        .or_else(|_| fs::read_to_string(alt_fees_program_path));
+    if file_content.is_err() {
+        log::error!("{:#?}", file_content.err());
+        return Err(model::InputError::FileNotFound);
+    }
+    let im_2 = file_content.unwrap();
+    let im_program_2 = Program::from_str(&im_2).unwrap();
+
+    // initializing a new process
+    let mut process: Process<Testnet3> = Process::load().unwrap();
+    process.add_program(&im_program_1).unwrap();
+    process.add_program(&im_program_2).unwrap();
+    process.add_program(&program).unwrap();
+
+    // Check if program was added correctly
+    let check_program = process.contains_program(program.id());
+    assert!(check_program);
+
+    let execution = payload.clone();
+
+    let exec_transitions: Vec<_> = execution.transitions().collect();
+    let function_name = exec_transitions.clone().last().unwrap().function_name();
+    let program_id = exec_transitions.clone().last().unwrap().program_id();
+
+    let _ = process.synthesize_key::<AleoV0, _>(program_id, function_name, rng);
+
+    let verification = process.verify_execution(&payload);
+    log::info!("Verifiction result: {:?}", verification);
+
+    match verification {
+        Ok(_) => {
+            return Ok(true);
+        }
+        Err(_) => {
+            return Ok(false);
+        }
+    }
+}
+
 async fn invalid_input_response(ask_id: u64, public_inputs: Bytes) -> GenerateProofResponse {
     log::info!("Invalid inputs received for ask ID : {}", ask_id);
-    let read_secp_private_key = fs::read("/app/secp.sec").unwrap();
+    let read_secp_private_key = fs::read("./app/secp.sec").unwrap();
     let secp_private_key = secp256k1::SecretKey::from_slice(&read_secp_private_key)
         .unwrap()
         .display_secret()

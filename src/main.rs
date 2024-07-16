@@ -2,6 +2,7 @@ mod handler;
 mod model;
 mod prover;
 mod response;
+mod secret_inputs_helpers;
 
 use actix_web::{App, HttpServer};
 use dotenv::dotenv;
