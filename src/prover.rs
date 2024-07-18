@@ -320,12 +320,12 @@ async fn invalid_input_response(ask_id: u64, public_inputs: Bytes) -> GeneratePr
         .await
         .unwrap();
 
-    let execution_response = GenerateProofResponse {
+    
+
+    GenerateProofResponse {
         input: Some(public_inputs.clone()),
         execution: None,
         verification_status: false,
         signature: Some("0x".to_owned() + &signature.to_string()),
-    };
-
-    execution_response
+    }
 }
