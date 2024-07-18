@@ -41,11 +41,11 @@ async fn benchmark() -> impl Responder {
     match benchmark_proof_generation {
         Ok(benchmarks) => {
             let proving_time = benchmarks.proof_generation_time.to_string();
-            return Ok(response(
+            Ok(response(
                 "Proof generated, the proof generation time returned is in milliseconds",
                 StatusCode::OK,
                 Some(Value::String(proving_time)),
-            ));
+            ))
         }
         Err(e) => {
             response(
@@ -53,7 +53,7 @@ async fn benchmark() -> impl Responder {
                 StatusCode::INTERNAL_SERVER_ERROR,
                 None,
             );
-            return Err(e);
+            Err(e)
         }
     }
 }
@@ -81,11 +81,11 @@ async fn generate_proof(payload: web::Json<model::ProveAuthInputs>) -> impl Resp
                 ];
                 let encoded = ethers::abi::encode(&value);
                 let encoded_bytes: ethers::types::Bytes = encoded.into();
-                return Ok(response(
+                Ok(response(
                     "Proof generated",
                     StatusCode::OK,
                     Some(Value::String(encoded_bytes.to_string())),
-                ));
+                ))
             } else if prove.execution.is_none() && prove.signature.is_some() {
                 let signature = prove.signature.unwrap();
                 return Ok(response(
@@ -102,7 +102,7 @@ async fn generate_proof(payload: web::Json<model::ProveAuthInputs>) -> impl Resp
             }
         }
         Err(e) => {
-            return Err(e);
+            Err(e)
         }
     }
 }
@@ -118,9 +118,9 @@ async fn check_input_handler(payload: web::Json<model::InputPayload>) -> impl Re
         Ok(auth) => {
             let is_auth_empty = auth.is_empty();
             if is_auth_empty {
-                return Ok(response("Payload is NOT valid", StatusCode::OK, None));
+                Ok(response("Payload is NOT valid", StatusCode::OK, None))
             } else {
-                return Ok(response("Payload is valid", StatusCode::OK, None));
+                Ok(response("Payload is valid", StatusCode::OK, None))
             }
         }
         Err(_) => {
@@ -129,7 +129,7 @@ async fn check_input_handler(payload: web::Json<model::InputPayload>) -> impl Re
                 StatusCode::BAD_REQUEST,
                 None,
             );
-            return Err(model::InputError::InvalidInputs);
+            Err(model::InputError::InvalidInputs)
         }
     }
 }
@@ -172,17 +172,17 @@ async fn check_input_with_signature(payload: web::Json<model::AskPayload>) -> im
                         .await
                         .unwrap();
                     if is_auth_empty {
-                        return Ok(response(
+                        Ok(response(
                             "Payload is NOT valid",
                             StatusCode::OK,
                             Some(Value::String(signature.to_string())),
-                        ));
+                        ))
                     } else {
-                        return Ok(response(
+                        Ok(response(
                             "Payload is valid",
                             StatusCode::OK,
                             Some(Value::String(signature.to_string())),
-                        ));
+                        ))
                     }
                 }
                 Err(_) => {
@@ -191,7 +191,7 @@ async fn check_input_with_signature(payload: web::Json<model::AskPayload>) -> im
                         StatusCode::BAD_REQUEST,
                         None,
                     );
-                    return Err(model::InputError::InvalidInputs);
+                    Err(model::InputError::InvalidInputs)
                 }
             }
         }
@@ -201,7 +201,7 @@ async fn check_input_with_signature(payload: web::Json<model::AskPayload>) -> im
                 StatusCode::BAD_REQUEST,
                 None,
             );
-            return Err(model::InputError::InvalidInputs);
+            Err(model::InputError::InvalidInputs)
         }
     }
 }
@@ -244,9 +244,9 @@ async fn check_encrypted_input(payload: web::Json<model::EncryptedInputPayload>)
                 Ok(auth) => {
                     let is_auth_empty = auth.is_empty();
                     if is_auth_empty {
-                        return Ok(response("Payload is NOT valid", StatusCode::OK, None));
+                        Ok(response("Payload is NOT valid", StatusCode::OK, None))
                     } else {
-                        return Ok(response("Payload is valid", StatusCode::OK, None));
+                        Ok(response("Payload is valid", StatusCode::OK, None))
                     }
                 }
                 Err(_) => {
@@ -255,7 +255,7 @@ async fn check_encrypted_input(payload: web::Json<model::EncryptedInputPayload>)
                         StatusCode::BAD_REQUEST,
                         None,
                     );
-                    return Err(model::InputError::InvalidInputs);
+                    Err(model::InputError::InvalidInputs)
                 }
             }
         }
@@ -266,7 +266,7 @@ async fn check_encrypted_input(payload: web::Json<model::EncryptedInputPayload>)
                 StatusCode::BAD_REQUEST,
                 None,
             );
-            return Err(model::InputError::InvalidInputs);
+            Err(model::InputError::InvalidInputs)
         }
     }
 }
@@ -282,9 +282,9 @@ async fn verify_inputs_and_proof(payload: web::Json<model::VerifyProofPayload>) 
         Ok(exec) => {
             let verification_result = prover::verify_execution_proof(exec).await.unwrap();
             if verification_result {
-                return Ok(response("Generated proof is valid", StatusCode::OK, None));
+                Ok(response("Generated proof is valid", StatusCode::OK, None))
             } else {
-                return Ok(response("Generated proof is NOT valid", StatusCode::OK, None));
+                Ok(response("Generated proof is NOT valid", StatusCode::OK, None))
             }
         }
         Err(_) => {
@@ -293,7 +293,7 @@ async fn verify_inputs_and_proof(payload: web::Json<model::VerifyProofPayload>) 
                 StatusCode::BAD_REQUEST,
                 None,
             );
-            return Err(model::InputError::InvalidInputs);
+            Err(model::InputError::InvalidInputs)
         }
     }
 }

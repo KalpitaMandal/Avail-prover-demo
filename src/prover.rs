@@ -6,7 +6,6 @@ use aleo_rust::{
 use ethers::signers::{LocalWallet, Signer};
 use ethers::types::Bytes;
 use rand::thread_rng;
-use secp256k1;
 use serde_json::{Error, Value};
 use snarkvm_synthesizer::Authorization;
 use std::{fs, str::FromStr, time::Instant};
@@ -85,11 +84,11 @@ pub fn prove_authorization(
             let execution_response = BenchmarkResponse {
                 proof_generation_time: (execute_time + prove_time).as_millis(),
             };
-            return Ok(execution_response);
+            Ok(execution_response)
         }
         Err(e) => {
             log::error!("Benchmarking error: {:?}", e);
-            return Err(model::InputError::ExecutionFailed);
+            Err(model::InputError::ExecutionFailed)
         }
     }
 }
@@ -218,7 +217,7 @@ pub async fn prove_auth(
                 signature: Some("0x".to_owned() + &signature.to_string()),
             };
 
-            return Ok(execution_response);
+            Ok(execution_response)
         }
         Err(e) => {
             println!("Error: {:?}", e);
@@ -228,7 +227,7 @@ pub async fn prove_auth(
                 verification_status: false,
                 signature: None,
             };
-            return Ok(execution_response);
+            Ok(execution_response)
         }
     }
 }
@@ -292,10 +291,10 @@ pub async fn verify_execution_proof(payload: Execution<Testnet3>) -> Result<bool
 
     match verification {
         Ok(_) => {
-            return Ok(true);
+            Ok(true)
         }
         Err(_) => {
-            return Ok(false);
+            Ok(false)
         }
     }
 }
@@ -328,5 +327,5 @@ async fn invalid_input_response(ask_id: u64, public_inputs: Bytes) -> GeneratePr
         signature: Some("0x".to_owned() + &signature.to_string()),
     };
 
-    return execution_response;
+    execution_response
 }
