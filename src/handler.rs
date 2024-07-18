@@ -3,7 +3,6 @@ use aleo_rust::{Testnet3, Execution};
 use ethers::{signers::{LocalWallet, Signer}, types::U256};
 use serde_json::{Error, Value};
 use ecies::{PublicKey, SecretKey};
-use secp256k1::Secp256k1;
 use snarkvm_synthesizer::Authorization;
 use std::{fs, str::FromStr};
 
