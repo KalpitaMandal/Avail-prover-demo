@@ -1,12 +1,21 @@
 use actix_web::{get, http::StatusCode, post, web, Responder};
-use aleo_rust::{Testnet3, Execution};
-use ethers::{signers::{LocalWallet, Signer}, types::U256};
-use serde_json::{Error, Value};
+use aleo_rust::{Execution, Testnet3};
 use ecies::{PublicKey, SecretKey};
+use ethers::{
+    core::k256::ecdsa::SigningKey,
+    signers::{LocalWallet, Signer, Wallet},
+    types::U256,
+};
+use serde_json::{Error, Value};
 use snarkvm_synthesizer::Authorization;
 use std::{fs, str::FromStr};
 
-use crate::{model, prover, response::response, secret_inputs_helpers};
+use crate::{
+    model::{self, AskPayload},
+    prover,
+    response::response,
+    secret_inputs_helpers,
+};
 
 // Get generator status from the supervisord
 #[get("/test")]
@@ -101,9 +110,7 @@ async fn generate_proof(payload: web::Json<model::ProveAuthInputs>) -> impl Resp
                 ));
             }
         }
-        Err(e) => {
-            Err(e)
-        }
+        Err(e) => Err(e),
     }
 }
 
@@ -147,42 +154,45 @@ async fn check_input_with_signature(payload: web::Json<model::AskPayload>) -> im
         .to_string();
     let signer_wallet = secp_private_key.parse::<LocalWallet>().unwrap();
     let key = hex::decode(secp_private_key).unwrap();
-    let secret = secret_inputs_helpers::decrypt_data_with_ecies_and_aes(&private_input, &acl, &key, market_id);
+    let secret = secret_inputs_helpers::decrypt_data_with_ecies_and_aes(
+        &private_input,
+        &acl,
+        &key,
+        market_id,
+    );
 
     match secret {
         Ok(secret_input) => {
             let decrypted_secret = String::from_utf8(secret_input).unwrap();
-            let auth_value: Value = serde_json::from_str(&decrypted_secret).unwrap();
+            let auth_value = serde_json::from_str(&decrypted_secret);
+            if auth_value.is_err() {
+                return Ok(response(
+                    "Payload is NOT valid",
+                    StatusCode::OK,
+                    Some(Value::String(
+                        generate_invalid_input_attestation(payload.0, signer_wallet).await,
+                    )),
+                ));
+            }
+            let auth_value = auth_value.unwrap();
+
             let authorization_structure: Result<Authorization<Testnet3>, Error> =
                 serde_json::from_value(auth_value);
 
             match authorization_structure {
                 Ok(auth) => {
                     let is_auth_empty = auth.is_empty();
-                    let ask_id = payload.ask_id;
-                    let value = vec![
-                        ethers::abi::Token::Uint(ask_id.into()),
-                        ethers::abi::Token::Bytes(payload.ask.prover_data.to_vec()),
-                    ];
-                    let encoded = ethers::abi::encode(&value);
-                    let digest = ethers::utils::keccak256(encoded);
 
-                    let signature = signer_wallet
-                        .sign_message(ethers::types::H256(digest))
-                        .await
-                        .unwrap();
                     if is_auth_empty {
                         Ok(response(
                             "Payload is NOT valid",
                             StatusCode::OK,
-                            Some(Value::String(signature.to_string())),
+                            Some(Value::String(
+                                generate_invalid_input_attestation(payload.0, signer_wallet).await,
+                            )),
                         ))
                     } else {
-                        Ok(response(
-                            "Payload is valid",
-                            StatusCode::OK,
-                            Some(Value::String(signature.to_string())),
-                        ))
+                        Ok(response("Payload is valid", StatusCode::OK, None))
                     }
                 }
                 Err(_) => {
@@ -208,6 +218,38 @@ async fn check_input_with_signature(payload: web::Json<model::AskPayload>) -> im
 
 #[post("/checkEncryptedInputs")]
 async fn check_encrypted_input(payload: web::Json<model::EncryptedInputPayload>) -> impl Responder {
+    // some code we can use to communicate with ME
+    // warn!("Market Id of this prover is known before");
+    // let decrypt_request_payload = DecryptRequest {
+    //     market_id: "19".to_string(),
+    //     private_input: hex::encode(encrypted_data.encrypted_data),
+    //     acl: hex::encode(encrypted_data.acl_data),
+    //     signature: "here ivs signature will come".to_string(),
+    //     ivs_pubkey: hex::encode(ivs_pubkey),
+    // };
+
+    // warn!("Matching engine IP is hardcoded in tests, figure out way to fetch is dynamically");
+    // // Make the POST request to the external service
+    // let client = Client::new();
+    // let response = client
+    //     .post("http://13.201.131.193:3000/decryptRequest")
+    //     .json(&decrypt_request_payload)
+    //     .send()
+    //     .await
+    //     .expect("Failed to send request");
+
+    // assert!(response.status().is_success());
+
+    // #[derive(Deserialize, Debug)]
+    // pub struct GetRequestResponse {
+    //     encrypted_data: String,
+    // }
+
+    // let response_payload: GetRequestResponse = response
+    //     .json()
+    //     .await
+    //     .expect("Failed to deserialize response");
+
     let encrypted_data = payload.clone();
     let encrypted_input = encrypted_data.encrypted_secrets;
     let private_input = hex::decode(encrypted_input).unwrap();
@@ -231,8 +273,13 @@ async fn check_encrypted_input(payload: web::Json<model::EncryptedInputPayload>)
     log::info!("Ecies public key: {:?}", formated_ecies_public_key);
 
     let key = hex::decode(secp_private_key).unwrap();
-    let secret = secret_inputs_helpers::decrypt_data_with_ecies_and_aes(&private_input, &acl, &key, market_id);
-    
+    let secret = secret_inputs_helpers::decrypt_data_with_ecies_and_aes(
+        &private_input,
+        &acl,
+        &key,
+        market_id,
+    );
+
     match secret {
         Ok(secret_input) => {
             let decrypted_secret = String::from_utf8(secret_input).unwrap();
@@ -284,7 +331,11 @@ async fn verify_inputs_and_proof(payload: web::Json<model::VerifyProofPayload>) 
             if verification_result {
                 Ok(response("Generated proof is valid", StatusCode::OK, None))
             } else {
-                Ok(response("Generated proof is NOT valid", StatusCode::OK, None))
+                Ok(response(
+                    "Generated proof is NOT valid",
+                    StatusCode::OK,
+                    None,
+                ))
             }
         }
         Err(_) => {
@@ -298,7 +349,6 @@ async fn verify_inputs_and_proof(payload: web::Json<model::VerifyProofPayload>) 
     }
 }
 
-
 // Routes
 pub fn routes(conf: &mut web::ServiceConfig) {
     let scope = web::scope("/api")
@@ -310,4 +360,24 @@ pub fn routes(conf: &mut web::ServiceConfig) {
         .service(check_encrypted_input)
         .service(verify_inputs_and_proof);
     conf.service(scope);
+}
+
+async fn generate_invalid_input_attestation(
+    payload: AskPayload,
+    signer_wallet: Wallet<SigningKey>,
+) -> String {
+    let ask_id = payload.ask_id;
+    let value = vec![
+        ethers::abi::Token::Uint(ask_id.into()),
+        ethers::abi::Token::Bytes(payload.ask.prover_data.to_vec()),
+    ];
+    let encoded = ethers::abi::encode(&value);
+    let digest = ethers::utils::keccak256(encoded);
+
+    let signature = signer_wallet
+        .sign_message(ethers::types::H256(digest))
+        .await
+        .unwrap();
+
+    return signature.to_string();
 }

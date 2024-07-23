@@ -12,12 +12,12 @@ use openssl::symm::{Cipher, Crypter, Mode};
 use serde::Serialize;
 use std::error::Error;
 
-#[derive(Serialize)]
+#[derive(Serialize, Debug, Clone)]
 pub struct SecretData {
     #[allow(unused)]
-    encrypted_data: Vec<u8>,
+    pub encrypted_data: Vec<u8>,
     #[allow(unused)]
-    acl_data: Vec<u8>,
+    pub acl_data: Vec<u8>,
 }
 
 #[allow(unused)]

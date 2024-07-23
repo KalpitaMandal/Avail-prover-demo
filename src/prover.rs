@@ -1,7 +1,7 @@
 use crate::model;
 use aleo_rust::{
     snarkvm_types::{Process, Program, Testnet3},
-    AleoV0, BlockMemory, BlockStore, Locator, Query, Execution,
+    AleoV0, BlockMemory, BlockStore, Execution, Locator, Query,
 };
 use ethers::signers::{LocalWallet, Signer};
 use ethers::types::Bytes;
@@ -13,6 +13,7 @@ use std::{fs, str::FromStr, time::Instant};
 pub struct GenerateProofResponse {
     pub input: Option<ethers::types::Bytes>,
     pub execution: Option<ethers::types::Bytes>,
+    #[allow(unused)]
     pub verification_status: bool,
     pub signature: Option<String>,
 }
@@ -232,7 +233,9 @@ pub async fn prove_auth(
     }
 }
 
-pub async fn verify_execution_proof(payload: Execution<Testnet3>) -> Result<bool, model::InputError> {
+pub async fn verify_execution_proof(
+    payload: Execution<Testnet3>,
+) -> Result<bool, model::InputError> {
     let rng = &mut thread_rng();
     // Defining a complex program with 4 transitions
     let multi_program_path = "./app/multi_txn_t1.txt".to_string();
@@ -290,12 +293,8 @@ pub async fn verify_execution_proof(payload: Execution<Testnet3>) -> Result<bool
     log::info!("Verifiction result: {:?}", verification);
 
     match verification {
-        Ok(_) => {
-            Ok(true)
-        }
-        Err(_) => {
-            Ok(false)
-        }
+        Ok(_) => Ok(true),
+        Err(_) => Ok(false),
     }
 }
 
@@ -319,8 +318,6 @@ async fn invalid_input_response(ask_id: u64, public_inputs: Bytes) -> GeneratePr
         .sign_message(ethers::types::H256(digest))
         .await
         .unwrap();
-
-    
 
     GenerateProofResponse {
         input: Some(public_inputs.clone()),
