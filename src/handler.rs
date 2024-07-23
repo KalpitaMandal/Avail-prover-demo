@@ -1,11 +1,10 @@
-use actix_web::{get, http::StatusCode, post, web, Responder};
+use actix_web::{get, http::StatusCode, post, web, HttpResponse, Responder};
 use aleo_rust::{Execution, Testnet3};
-use ecies::{PublicKey, SecretKey};
 use ethers::{
     core::k256::ecdsa::SigningKey,
     signers::{LocalWallet, Signer, Wallet},
-    types::U256,
 };
+use serde::{Deserialize, Serialize};
 use serde_json::{Error, Value};
 use snarkvm_synthesizer::Authorization;
 use std::{fs, str::FromStr};
@@ -121,24 +120,7 @@ async fn check_input_handler(payload: web::Json<model::InputPayload>) -> impl Re
     let authorization_structure: Result<Authorization<Testnet3>, Error> =
         serde_json::from_value(auth_value);
 
-    match authorization_structure {
-        Ok(auth) => {
-            let is_auth_empty = auth.is_empty();
-            if is_auth_empty {
-                Ok(response("Payload is NOT valid", StatusCode::OK, None))
-            } else {
-                Ok(response("Payload is valid", StatusCode::OK, None))
-            }
-        }
-        Err(_) => {
-            response(
-                "The authorization input structure is invalid",
-                StatusCode::BAD_REQUEST,
-                None,
-            );
-            Err(model::InputError::InvalidInputs)
-        }
-    }
+    check_authorization(authorization_structure, None, None).await
 }
 
 #[post("/checkInputWithSignature")]
@@ -147,174 +129,125 @@ async fn check_input_with_signature(payload: web::Json<model::AskPayload>) -> im
     let private_input = hex::decode(encrypted_input).unwrap();
     let acl = hex::decode(payload.clone().acl).unwrap();
     let market_id = payload.clone().ask.market_id;
-    let read_secp_private_key = fs::read("./app/secp.sec").unwrap();
-    let secp_private_key = secp256k1::SecretKey::from_slice(&read_secp_private_key)
-        .unwrap()
-        .display_secret()
-        .to_string();
-    let signer_wallet = secp_private_key.parse::<LocalWallet>().unwrap();
-    let key = hex::decode(secp_private_key).unwrap();
-    let secret = secret_inputs_helpers::decrypt_data_with_ecies_and_aes(
+
+    let secret_input = match secret_inputs_helpers::decrypt_data_with_ecies_and_aes(
         &private_input,
         &acl,
-        &key,
+        &get_secp_private_key(),
         market_id,
-    );
-
-    match secret {
-        Ok(secret_input) => {
-            let decrypted_secret = String::from_utf8(secret_input).unwrap();
-            let auth_value = serde_json::from_str(&decrypted_secret);
-            if auth_value.is_err() {
-                return Ok(response(
-                    "Payload is NOT valid",
-                    StatusCode::OK,
-                    Some(Value::String(
-                        generate_invalid_input_attestation(payload.0, signer_wallet).await,
-                    )),
-                ));
-            }
-            let auth_value = auth_value.unwrap();
-
-            let authorization_structure: Result<Authorization<Testnet3>, Error> =
-                serde_json::from_value(auth_value);
-
-            match authorization_structure {
-                Ok(auth) => {
-                    let is_auth_empty = auth.is_empty();
-
-                    if is_auth_empty {
-                        Ok(response(
-                            "Payload is NOT valid",
-                            StatusCode::OK,
-                            Some(Value::String(
-                                generate_invalid_input_attestation(payload.0, signer_wallet).await,
-                            )),
-                        ))
-                    } else {
-                        Ok(response("Payload is valid", StatusCode::OK, None))
-                    }
-                }
-                Err(_) => {
-                    response(
-                        "The authorization input structure is invalid",
-                        StatusCode::BAD_REQUEST,
-                        None,
-                    );
-                    Err(model::InputError::InvalidInputs)
-                }
-            }
-        }
+    ) {
+        Ok(data) => data,
         Err(_) => {
-            response(
-                "The secret encyrption could not be decrypted",
+            return response(
+                "The secret encryption could not be decrypted",
                 StatusCode::BAD_REQUEST,
                 None,
             );
-            Err(model::InputError::InvalidInputs)
         }
-    }
+    };
+
+    let signer_wallet = get_signer();
+    let decrypted_secret = String::from_utf8(secret_input).unwrap();
+    let auth_value = match serde_json::from_str(&decrypted_secret) {
+        Ok(data) => data,
+        Err(_) => {
+            return response(
+                "Payload is NOT valid",
+                StatusCode::OK,
+                Some(Value::String(
+                    generate_invalid_input_attestation(payload.0, signer_wallet).await,
+                )),
+            );
+        }
+    };
+
+    let authorization_structure: Result<Authorization<Testnet3>, Error> =
+        serde_json::from_value(auth_value);
+
+    check_authorization(
+        authorization_structure,
+        Some(payload.0),
+        Some(signer_wallet),
+    )
+    .await
 }
 
 #[post("/checkEncryptedInputs")]
 async fn check_encrypted_input(payload: web::Json<model::EncryptedInputPayload>) -> impl Responder {
-    // some code we can use to communicate with ME
-    // warn!("Market Id of this prover is known before");
-    // let decrypt_request_payload = DecryptRequest {
-    //     market_id: "19".to_string(),
-    //     private_input: hex::encode(encrypted_data.encrypted_data),
-    //     acl: hex::encode(encrypted_data.acl_data),
-    //     signature: "here ivs signature will come".to_string(),
-    //     ivs_pubkey: hex::encode(ivs_pubkey),
-    // };
+    #[derive(Deserialize, Serialize)]
+    pub struct DecryptRequest {
+        market_id: String,
+        private_input: String,
+        acl: String,
+        signature: String,
+        ivs_pubkey: String,
+    }
 
-    // warn!("Matching engine IP is hardcoded in tests, figure out way to fetch is dynamically");
-    // // Make the POST request to the external service
-    // let client = Client::new();
-    // let response = client
-    //     .post("http://13.201.131.193:3000/decryptRequest")
-    //     .json(&decrypt_request_payload)
-    //     .send()
-    //     .await
-    //     .expect("Failed to send request");
+    let payload = payload.0;
+    let (signature, secp_pub_key) = {
+        let message = &payload.market_id;
+        let signer_wallet = get_signer();
+        let digest = ethers::utils::keccak256(message);
 
-    // assert!(response.status().is_success());
+        let read_secp_pub_key = fs::read("./app/secp.pub").unwrap();
+        (
+            signer_wallet
+                .sign_message(ethers::types::H256(digest))
+                .await
+                .unwrap()
+                .to_string(),
+            read_secp_pub_key,
+        )
+    };
+    let decrypt_request_payload = DecryptRequest {
+        market_id: payload.market_id,
+        private_input: hex::encode(payload.encrypted_secrets),
+        acl: hex::encode(payload.acl),
+        signature,
+        ivs_pubkey: hex::encode(secp_pub_key),
+    };
 
-    // #[derive(Deserialize, Debug)]
-    // pub struct GetRequestResponse {
-    //     encrypted_data: String,
-    // }
+    let client = reqwest::Client::new();
+    let api_response = client
+        .post(&payload.me_decryption_url)
+        .json(&decrypt_request_payload)
+        .send()
+        .await
+        .expect("Failed to send request");
 
-    // let response_payload: GetRequestResponse = response
-    //     .json()
-    //     .await
-    //     .expect("Failed to deserialize response");
+    if api_response.status().is_success() {
+        #[derive(Deserialize, Debug)]
+        pub struct GetRequestResponse {
+            encrypted_data: String,
+        }
 
-    let encrypted_data = payload.clone();
-    let encrypted_input = encrypted_data.encrypted_secrets;
-    let private_input = hex::decode(encrypted_input).unwrap();
-    let acl = hex::decode(encrypted_data.acl).unwrap();
-    let read_market_id = encrypted_data.market_id;
-    let market_id = U256::from_str(&read_market_id).unwrap();
-    let read_secp_private_key = fs::read("./app/secp.sec").unwrap();
-    let secp_private_key = secp256k1::SecretKey::from_slice(&read_secp_private_key)
-        .unwrap()
-        .display_secret()
-        .to_string();
-    let pub_key = hex::encode(secp_private_key.parse::<LocalWallet>().unwrap().address());
-    log::info!("Public key: {:?}", pub_key.clone());
-    let private_key = hex::decode(secp_private_key.clone()).unwrap();
-    let private_key: &[u8; 32] = private_key.as_slice().try_into().unwrap();
-    let sk = SecretKey::parse(private_key).unwrap();
-    let public_key = PublicKey::from_secret_key(&sk);
-    let public_key = public_key.serialize_compressed();
-    let encoded_key = hex::encode(public_key);
-    let formated_ecies_public_key = "0x".to_string() + &encoded_key;
-    log::info!("Ecies public key: {:?}", formated_ecies_public_key);
+        let response_payload: GetRequestResponse = api_response
+            .json()
+            .await
+            .expect("Failed to deserialize response");
 
-    let key = hex::decode(secp_private_key).unwrap();
-    let secret = secret_inputs_helpers::decrypt_data_with_ecies_and_aes(
-        &private_input,
-        &acl,
-        &key,
-        market_id,
-    );
+        let encrypted_data = hex::decode(response_payload.encrypted_data).unwrap();
+        let decrypted_data =
+            secret_inputs_helpers::decrypt_ecies(&get_secp_private_key(), &encrypted_data).unwrap();
 
-    match secret {
-        Ok(secret_input) => {
-            let decrypted_secret = String::from_utf8(secret_input).unwrap();
-            let auth_value: Value = serde_json::from_str(&decrypted_secret).unwrap();
-            let authorization_structure: Result<Authorization<Testnet3>, Error> =
-                serde_json::from_value(auth_value);
-
-            match authorization_structure {
-                Ok(auth) => {
-                    let is_auth_empty = auth.is_empty();
-                    if is_auth_empty {
-                        Ok(response("Payload is NOT valid", StatusCode::OK, None))
-                    } else {
-                        Ok(response("Payload is valid", StatusCode::OK, None))
-                    }
-                }
+        let authorization_structure: Result<Authorization<Testnet3>, Error> = {
+            let decrypted_secret = String::from_utf8(decrypted_data).unwrap();
+            let auth_value = match serde_json::from_str(&decrypted_secret) {
+                Ok(data) => data,
                 Err(_) => {
-                    response(
-                        "The authorization input structure is invalid",
-                        StatusCode::BAD_REQUEST,
-                        None,
-                    );
-                    Err(model::InputError::InvalidInputs)
+                    return response("Decrypted Data is not valid", StatusCode::OK, None);
                 }
-            }
-        }
-        Err(e) => {
-            log::info!("Error: {:?}", e);
-            response(
-                "The secret encyrption could not be decrypted",
-                StatusCode::BAD_REQUEST,
-                None,
-            );
-            Err(model::InputError::InvalidInputs)
-        }
+            };
+            serde_json::from_value(auth_value)
+        };
+
+        check_authorization(authorization_structure, None, None).await
+    } else {
+        response(
+            "Could not fetch info from matching engine",
+            StatusCode::FAILED_DEPENDENCY,
+            None,
+        )
     }
 }
 
@@ -380,4 +313,55 @@ async fn generate_invalid_input_attestation(
         .unwrap();
 
     return signature.to_string();
+}
+
+fn get_signer() -> Wallet<SigningKey> {
+    let secp_private_key = secp256k1::SecretKey::from_slice(&get_secp_private_key())
+        .unwrap()
+        .display_secret()
+        .to_string();
+    secp_private_key.parse::<LocalWallet>().unwrap()
+}
+
+fn get_secp_private_key() -> Vec<u8> {
+    fs::read("./app/secp.sec").unwrap()
+}
+
+async fn check_authorization(
+    authorization_structure: Result<Authorization<Testnet3>, Error>,
+    ask_payload: Option<AskPayload>,
+    signer_wallet: Option<Wallet<SigningKey>>,
+) -> HttpResponse {
+    match authorization_structure {
+        Ok(auth) => {
+            let is_auth_empty = auth.is_empty();
+
+            if is_auth_empty {
+                if ask_payload.is_some() && signer_wallet.is_some() {
+                    return response(
+                        "Payload is NOT valid",
+                        StatusCode::OK,
+                        Some(Value::String(
+                            generate_invalid_input_attestation(
+                                ask_payload.unwrap(),
+                                signer_wallet.unwrap(),
+                            )
+                            .await,
+                        )),
+                    );
+                } else {
+                    return response("Payload is NOT valid", StatusCode::OK, None);
+                }
+            } else {
+                return response("Payload is valid", StatusCode::OK, None);
+            }
+        }
+        Err(_) => {
+            return response(
+                "The authorization input structure is invalid",
+                StatusCode::BAD_REQUEST,
+                None,
+            );
+        }
+    }
 }
