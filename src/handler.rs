@@ -190,13 +190,15 @@ async fn check_encrypted_input(payload: web::Json<model::EncryptedInputPayload>)
         let digest = ethers::utils::keccak256(message);
 
         let read_secp_pub_key = fs::read("./app/secp.pub").unwrap();
+        let mut modified_secp_pub_key = vec![0x04];
+        modified_secp_pub_key.extend_from_slice(&read_secp_pub_key);
         (
             signer_wallet
                 .sign_message(ethers::types::H256(digest))
                 .await
                 .unwrap()
                 .to_string(),
-            read_secp_pub_key,
+            modified_secp_pub_key,
         )
     };
     let decrypt_request_payload = DecryptRequest {
@@ -212,8 +214,9 @@ async fn check_encrypted_input(payload: web::Json<model::EncryptedInputPayload>)
         .post(&payload.me_decryption_url)
         .json(&decrypt_request_payload)
         .send()
-        .await
-        .expect("Failed to send request");
+        .await;
+
+    let api_response = api_response.unwrap();
 
     if api_response.status().is_success() {
         #[derive(Deserialize, Debug)]
