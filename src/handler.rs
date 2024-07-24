@@ -34,7 +34,9 @@ async fn benchmark() -> impl Responder {
         return Err(model::InputError::FileNotFound);
     }
 
-    let auth_value: Value = serde_json::from_str(&file_content.unwrap()).unwrap();
+    let auth_value: Value =
+        serde_json::from_str(&file_content.expect("error reading file contents"))
+            .expect("error create auth_value");
     let authorization_structure: Result<Authorization<Testnet3>, Error> =
         serde_json::from_value(auth_value);
 
@@ -44,7 +46,9 @@ async fn benchmark() -> impl Responder {
     }
 
     log::info!("Printing benchmarks for the avail prover");
-    let benchmark_proof_generation = prover::prove_authorization(authorization_structure.unwrap());
+    let benchmark_proof_generation = prover::prove_authorization(
+        authorization_structure.expect("error creating authorization structure"),
+    );
 
     match benchmark_proof_generation {
         Ok(benchmarks) => {
@@ -116,14 +120,19 @@ async fn generate_proof(payload: web::Json<model::ProveAuthInputs>) -> impl Resp
 #[post("/checkInput")]
 async fn check_input_handler(payload: web::Json<model::InputPayload>) -> impl Responder {
     let private_input = payload.clone().secrets.unwrap();
-    let auth_value: Value = serde_json::from_str(&private_input).unwrap();
+    let auth_value: Value = match serde_json::from_str(&private_input) {
+        Ok(data) => data,
+        Err(_) => {
+            return response("Invalid Authorization", StatusCode::BAD_REQUEST, None);
+        }
+    };
     let authorization_structure: Result<Authorization<Testnet3>, Error> =
         serde_json::from_value(auth_value);
 
     check_authorization(authorization_structure, None, None).await
 }
 
-#[post("/checkInputWithSignature")]
+#[post("/getAttestationForInvalidInputs")]
 async fn check_input_with_signature(payload: web::Json<model::AskPayload>) -> impl Responder {
     let encrypted_input = payload.clone().encrypted_secret;
     let private_input = hex::decode(encrypted_input).unwrap();
@@ -184,29 +193,25 @@ async fn check_encrypted_input(payload: web::Json<model::EncryptedInputPayload>)
     }
 
     let payload = payload.0;
-    let (signature, secp_pub_key) = {
+    let (signature, ivs_pub_key) = {
         let message = &payload.market_id;
         let signer_wallet = get_signer();
-        let digest = ethers::utils::keccak256(message);
+        let digest = ethers::utils::keccak256(message.as_bytes());
 
         let read_secp_pub_key = fs::read("./app/secp.pub").unwrap();
         let mut modified_secp_pub_key = vec![0x04];
         modified_secp_pub_key.extend_from_slice(&read_secp_pub_key);
-        (
-            signer_wallet
-                .sign_message(ethers::types::H256(digest))
-                .await
-                .unwrap()
-                .to_string(),
-            modified_secp_pub_key,
-        )
+        let signature = signer_wallet
+            .sign_hash(ethers::types::H256(digest))
+            .expect("Failed signing market id for check encrypted inputs");
+        (signature.to_string(), modified_secp_pub_key)
     };
     let decrypt_request_payload = DecryptRequest {
         market_id: payload.market_id,
-        private_input: hex::encode(payload.encrypted_secrets),
-        acl: hex::encode(payload.acl),
+        private_input: payload.encrypted_secrets,
+        acl: payload.acl,
         signature,
-        ivs_pubkey: hex::encode(secp_pub_key),
+        ivs_pubkey: hex::encode(ivs_pub_key),
     };
 
     let client = reqwest::Client::new();
@@ -214,9 +219,8 @@ async fn check_encrypted_input(payload: web::Json<model::EncryptedInputPayload>)
         .post(&payload.me_decryption_url)
         .json(&decrypt_request_payload)
         .send()
-        .await;
-
-    let api_response = api_response.unwrap();
+        .await
+        .unwrap();
 
     if api_response.status().is_success() {
         #[derive(Deserialize, Debug)]
@@ -224,10 +228,17 @@ async fn check_encrypted_input(payload: web::Json<model::EncryptedInputPayload>)
             encrypted_data: String,
         }
 
-        let response_payload: GetRequestResponse = api_response
-            .json()
-            .await
-            .expect("Failed to deserialize response");
+        let response_payload: GetRequestResponse = match api_response.json().await {
+            Ok(data) => data,
+            Err(err) => {
+                dbg!(err);
+                return response(
+                    "Unable to get response from matching engine",
+                    StatusCode::EXPECTATION_FAILED,
+                    None,
+                );
+            }
+        };
 
         let encrypted_data = hex::decode(response_payload.encrypted_data).unwrap();
         let decrypted_data =
@@ -238,7 +249,7 @@ async fn check_encrypted_input(payload: web::Json<model::EncryptedInputPayload>)
             let auth_value = match serde_json::from_str(&decrypted_secret) {
                 Ok(data) => data,
                 Err(_) => {
-                    return response("Decrypted Data is not valid", StatusCode::OK, None);
+                    return response("Decrypted Data is not valid", StatusCode::BAD_REQUEST, None);
                 }
             };
             serde_json::from_value(auth_value)
