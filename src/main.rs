@@ -262,7 +262,9 @@ mod tests {
 
         warn!("Matching Engine IP hardcoded, it should be fetched from somewhere else");
 
-        let matching_engine_pubkey = hex::decode("c8f7b1ac735d9c0f81705c5c70f777edfb1f689a9d4cf162e6c5863478553a01daafca3cdb4821316c042b1daa403ef55ca01147f1f073e24561f55c96cf152d").expect("is valid ecies pubkey");
+        let matching_engine_pubkey =
+            hex::decode(fetch_me_pub_key().await.expect("Failed fetching me pubkey"))
+                .expect("is valid ecies pubkey");
         let encrypted_data = secret_inputs_helpers::encrypt_data_with_ecies_and_aes(
             &matching_engine_pubkey,
             &data_to_encrypt,
@@ -302,7 +304,9 @@ mod tests {
 
         warn!("Matching Engine IP hardcoded, it should be fetched from somewhere else");
 
-        let matching_engine_pubkey = hex::decode("c8f7b1ac735d9c0f81705c5c70f777edfb1f689a9d4cf162e6c5863478553a01daafca3cdb4821316c042b1daa403ef55ca01147f1f073e24561f55c96cf152d").expect("is valid ecies pubkey");
+        let matching_engine_pubkey =
+            hex::decode(fetch_me_pub_key().await.expect("Failed fetching me pubkey"))
+                .expect("is valid ecies pubkey");
         let encrypted_data = secret_inputs_helpers::encrypt_data_with_ecies_and_aes(
             &matching_engine_pubkey,
             &data_to_encrypt,
@@ -332,5 +336,10 @@ mod tests {
             "data": null
         });
         assert_eq!(result_json, expected_json);
+    }
+
+    async fn fetch_me_pub_key() -> Result<String, Box<dyn std::error::Error>> {
+        warn!("Fetching ME publickey dynamically using matching engine client");
+        Ok("c8f7b1ac735d9c0f81705c5c70f777edfb1f689a9d4cf162e6c5863478553a01daafca3cdb4821316c042b1daa403ef55ca01147f1f073e24561f55c96cf152d".to_string())
     }
 }
