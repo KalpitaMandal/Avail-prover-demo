@@ -12,8 +12,7 @@ use std::{fs, str::FromStr};
 use crate::{
     model::{self, AskPayload},
     prover,
-    response::response,
-    secret_inputs_helpers,
+    response::response
 };
 
 // Get generator status from the supervisord
@@ -139,7 +138,7 @@ async fn check_input_with_signature(payload: web::Json<model::AskPayload>) -> im
     let acl = hex::decode(payload.clone().acl).unwrap();
     let market_id = payload.clone().ask.market_id;
 
-    let secret_input = match secret_inputs_helpers::decrypt_data_with_ecies_and_aes(
+    let secret_input = match kalypso_helper::secret_inputs_helpers::decrypt_data_with_ecies_and_aes(
         &private_input,
         &acl,
         &get_secp_private_key(),
@@ -242,7 +241,7 @@ async fn check_encrypted_input(payload: web::Json<model::EncryptedInputPayload>)
 
         let encrypted_data = hex::decode(response_payload.encrypted_data).unwrap();
         let decrypted_data =
-            secret_inputs_helpers::decrypt_ecies(&get_secp_private_key(), &encrypted_data).unwrap();
+            kalypso_helper::secret_inputs_helpers::decrypt_ecies(&get_secp_private_key(), &encrypted_data).unwrap();
 
         let authorization_structure: Result<Authorization<Testnet3>, Error> = {
             let decrypted_secret = String::from_utf8(decrypted_data).unwrap();

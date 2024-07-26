@@ -2,7 +2,6 @@ mod handler;
 mod model;
 mod prover;
 mod response;
-mod secret_inputs_helpers;
 
 use actix_web::{App, HttpServer};
 use dotenv::dotenv;
@@ -33,7 +32,7 @@ async fn main() -> std::io::Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{handler, model, secret_inputs_helpers};
+    use crate::{handler, model};
     use actix_web::{test, App};
     use bindings::shared_types::Ask;
     use log::warn;
@@ -167,7 +166,7 @@ mod tests {
         let data_to_encrypt = fs::read("./app/checkInput.txt").await.unwrap();
         // bit un-intutive, but rn this seems only way to test
         let receiver_pub_key = fs::read("./app/secp.pub").await.unwrap();
-        let encrypted_data = secret_inputs_helpers::encrypt_data_with_ecies_and_aes(
+        let encrypted_data = kalypso_helper::secret_inputs_helpers::encrypt_data_with_ecies_and_aes(
             &receiver_pub_key,
             &data_to_encrypt,
         )
@@ -213,7 +212,7 @@ mod tests {
         let data_to_encrypt = vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 1, 2, 3, 4, 5]; // these are invalid inputs
                                                                               // bit un-intutive, but rn this seems only way to test
         let receiver_pub_key = fs::read("./app/secp.pub").await.unwrap();
-        let encrypted_data = secret_inputs_helpers::encrypt_data_with_ecies_and_aes(
+        let encrypted_data = kalypso_helper::secret_inputs_helpers::encrypt_data_with_ecies_and_aes(
             &receiver_pub_key,
             &data_to_encrypt,
         )
@@ -265,7 +264,7 @@ mod tests {
         let matching_engine_pubkey =
             hex::decode(fetch_me_pub_key().await.expect("Failed fetching me pubkey"))
                 .expect("is valid ecies pubkey");
-        let encrypted_data = secret_inputs_helpers::encrypt_data_with_ecies_and_aes(
+        let encrypted_data = kalypso_helper::secret_inputs_helpers::encrypt_data_with_ecies_and_aes(
             &matching_engine_pubkey,
             &data_to_encrypt,
         )
@@ -307,7 +306,7 @@ mod tests {
         let matching_engine_pubkey =
             hex::decode(fetch_me_pub_key().await.expect("Failed fetching me pubkey"))
                 .expect("is valid ecies pubkey");
-        let encrypted_data = secret_inputs_helpers::encrypt_data_with_ecies_and_aes(
+        let encrypted_data = kalypso_helper::secret_inputs_helpers::encrypt_data_with_ecies_and_aes(
             &matching_engine_pubkey,
             &data_to_encrypt,
         )
