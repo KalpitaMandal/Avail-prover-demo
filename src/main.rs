@@ -262,7 +262,7 @@ mod tests {
 
         warn!("Matching Engine IP hardcoded, it should be fetched from somewhere else");
 
-        let matching_engine_pubkey = hex::decode("5d45843db252f88bcf78ec4c602fa03c880c1f77e9a726e8428c2d0f92bd97c8da0ee6b1d96f9227b2f7c002ae86543f6f40799c880c740e04683cb863571d2d").expect("is valid ecies pubkey");
+        let matching_engine_pubkey = hex::decode("c8f7b1ac735d9c0f81705c5c70f777edfb1f689a9d4cf162e6c5863478553a01daafca3cdb4821316c042b1daa403ef55ca01147f1f073e24561f55c96cf152d").expect("is valid ecies pubkey");
         let encrypted_data = secret_inputs_helpers::encrypt_data_with_ecies_and_aes(
             &matching_engine_pubkey,
             &data_to_encrypt,
@@ -272,7 +272,7 @@ mod tests {
         let payload: model::EncryptedInputPayload = model::EncryptedInputPayload {
             acl: hex::encode(encrypted_data.acl_data),
             encrypted_secrets: hex::encode(encrypted_data.encrypted_data),
-            me_decryption_url: "http://localhost:3000/decryptRequest".into(),
+            me_decryption_url: "http://13.201.131.193:3000/decryptRequest".into(),
             market_id: "19".into(),
         };
 
@@ -302,7 +302,7 @@ mod tests {
 
         warn!("Matching Engine IP hardcoded, it should be fetched from somewhere else");
 
-        let matching_engine_pubkey = hex::decode("5d45843db252f88bcf78ec4c602fa03c880c1f77e9a726e8428c2d0f92bd97c8da0ee6b1d96f9227b2f7c002ae86543f6f40799c880c740e04683cb863571d2d").expect("is valid ecies pubkey");
+        let matching_engine_pubkey = hex::decode("c8f7b1ac735d9c0f81705c5c70f777edfb1f689a9d4cf162e6c5863478553a01daafca3cdb4821316c042b1daa403ef55ca01147f1f073e24561f55c96cf152d").expect("is valid ecies pubkey");
         let encrypted_data = secret_inputs_helpers::encrypt_data_with_ecies_and_aes(
             &matching_engine_pubkey,
             &data_to_encrypt,
@@ -312,7 +312,7 @@ mod tests {
         let payload: model::EncryptedInputPayload = model::EncryptedInputPayload {
             acl: hex::encode(encrypted_data.acl_data),
             encrypted_secrets: hex::encode(encrypted_data.encrypted_data),
-            me_decryption_url: "http://localhost:3000/decryptRequest".into(),
+            me_decryption_url: "http://13.201.131.193:3000/decryptRequest".into(),
             market_id: "19".into(),
         };
 
