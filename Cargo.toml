@@ -26,7 +26,7 @@ ecies = { version = "0.2.7", features = ["std"] }
 ethers ={version = "2.0.10", features = ["abigen", "ws", "rustls"] }
 reqwest = { version = "0.12.5", features = ["json"]}
 snarkvm-synthesizer = "0.16.19"
-kalypso_helper = {git = "https://your_user_name:your_auth_key@github.com/marlinprotocol/kalypso-unified.git", branch = "master", package = "helper"}
+kalypso_helper = { git = "https://github.com/marlinprotocol/kalypso-unified.git", branch = "master", package = "helper" }
 
 
 [dev-dependencies]

@@ -12,7 +12,7 @@ use std::{fs, str::FromStr};
 use crate::{
     model::{self, AskPayload},
     prover,
-    response::response
+    response::response,
 };
 
 // Get generator status from the supervisord
@@ -240,8 +240,11 @@ async fn check_encrypted_input(payload: web::Json<model::EncryptedInputPayload>)
         };
 
         let encrypted_data = hex::decode(response_payload.encrypted_data).unwrap();
-        let decrypted_data =
-            kalypso_helper::secret_inputs_helpers::decrypt_ecies(&get_secp_private_key(), &encrypted_data).unwrap();
+        let decrypted_data = kalypso_helper::secret_inputs_helpers::decrypt_ecies(
+            &get_secp_private_key(),
+            &encrypted_data,
+        )
+        .unwrap();
 
         let authorization_structure: Result<Authorization<Testnet3>, Error> = {
             let decrypted_secret = String::from_utf8(decrypted_data).unwrap();
