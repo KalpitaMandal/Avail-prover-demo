@@ -36,6 +36,7 @@ mod tests {
     use actix_web::{test, App};
     use bindings::shared_types::Ask;
     use log::warn;
+    use serde::{Deserialize, Serialize};
     use serde_json::{json, Value};
     use tokio::fs;
 
@@ -261,8 +262,6 @@ mod tests {
         let app = test::init_service(App::new().service(handler::check_encrypted_input)).await;
         let data_to_encrypt = fs::read("./app/checkInput.txt").await.unwrap();
 
-        warn!("Matching Engine IP hardcoded, it should be fetched from somewhere else");
-
         let matching_engine_pubkey =
             hex::decode(fetch_me_pub_key().await.expect("Failed fetching me pubkey"))
                 .expect("is valid ecies pubkey");
@@ -343,6 +342,38 @@ mod tests {
 
     async fn fetch_me_pub_key() -> Result<String, Box<dyn std::error::Error>> {
         warn!("Fetching ME publickey dynamically using matching engine client");
-        Ok("c8f7b1ac735d9c0f81705c5c70f777edfb1f689a9d4cf162e6c5863478553a01daafca3cdb4821316c042b1daa403ef55ca01147f1f073e24561f55c96cf152d".to_string())
+
+        let url = "http://13.201.131.193:5000/api/getMatchingEnginePublicKeys";
+
+        let response = reqwest::get(url).await?;
+
+        #[derive(Serialize, Debug, Deserialize)]
+        pub struct MatchingEnginePublicKeys {
+            pub matching_engine_public_key: String,
+            pub matching_engine_ecies_public_key: String,
+        }
+
+        #[derive(Serialize, Deserialize, Debug)]
+        struct JsonResponse {
+            status: String,
+            message: String,
+            data: Option<MatchingEnginePublicKeys>,
+        }
+
+        if response.status().is_success() {
+            let json_response: JsonResponse = response.json().await?;
+
+            if let Some(data) = json_response.data {
+                let pub_key_stripped = data
+                    .matching_engine_ecies_public_key
+                    .strip_prefix("0x")
+                    .unwrap_or(&data.matching_engine_ecies_public_key);
+                Ok(pub_key_stripped.to_string())
+            } else {
+                Err("Missing data in response".into())
+            }
+        } else {
+            Err("Failed fetching ME keys".into())
+        }
     }
 }
