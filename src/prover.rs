@@ -3,6 +3,7 @@ use crate::model;
 //     snarkvm_types::{Process, Program, Testnet3},
 //     AleoV0, BlockMemory, BlockStore, Execution, Locator, Query,
 // };
+use serde::{Deserialize, Serialize};
 use ethers::signers::{LocalWallet, Signer};
 use ethers::types::Bytes;
 use rand::thread_rng;
@@ -23,6 +24,18 @@ pub struct GenerateProofResponse {
     #[allow(unused)]
     pub verification_status: bool,
     pub signature: Option<String>,
+}
+
+#[derive(Serialize, Debug, Deserialize, Clone)]
+pub struct PrivateInputsTestnet {
+    pub auth: Authorization<TestnetV0>,
+    pub fee_auth: Authorization<TestnetV0>,
+}
+
+#[derive(Serialize, Debug, Deserialize, Clone)]
+pub struct PrivateInputsMainnet {
+    pub auth: Authorization<MainnetV0>,
+    pub fee_auth: Authorization<MainnetV0>,
 }
 
 pub struct BenchmarkResponse {
@@ -137,31 +150,22 @@ pub async fn prove_auth_mainnet(
     let check_program = process.contains_program(program.id());
     assert!(check_program);
 
-    let auth_input = payload.clone().private_input;
-    let secrets = String::from_utf8(auth_input).unwrap();
+    let private_inputs = payload.clone().private_input;
+    let secrets = String::from_utf8(private_inputs).unwrap();
     let value: Value = serde_json::from_str(&secrets).unwrap();
     let public_inputs = payload.ask.prover_data.clone();
     let ask_id = payload.ask_id;
-    let authorization_structure: Result<Authorization<CurrentNetwork>, Error> =
+    let private_input_structure: Result<PrivateInputsMainnet, Error> =
         serde_json::from_value(value);
-    if authorization_structure.is_err() {
+    if private_input_structure.is_err() {
         let generator_response = invalid_input_response(ask_id, public_inputs).await;
         return Ok(generator_response);
     }
 
-    let fee_auth_input = payload.clone().fee_auth;
-    let fee_string = String::from_utf8(fee_auth_input).unwrap();
-    let fee_value: Value = serde_json::from_str(&fee_string).unwrap();
-    let fee_authorization_structure: Result<Authorization<CurrentNetwork>, Error> =
-        serde_json::from_value(fee_value);
-    if fee_authorization_structure.is_err() {
-        let generator_response = invalid_input_response(ask_id, public_inputs).await;
-        return Ok(generator_response);
-    }
-
-    let authorization = authorization_structure.unwrap();
-    let fee_authorization = fee_authorization_structure.unwrap();
-    let auth_transitions = authorization.clone().transitions();
+    let private_input = private_input_structure.unwrap();
+    let fee_auth = private_input.fee_auth;
+    let auth = private_input.auth;
+    let auth_transitions = auth.clone().transitions();
 
     let function = auth_transitions.last().unwrap().1.function_name();
     let program_id = auth_transitions.last().unwrap().1.program_id();
@@ -177,12 +181,12 @@ pub async fn prove_auth_mainnet(
 
     // execute authorization
     let (_result, mut trace) = process
-        .execute::<CurrentAleo, _>(authorization.clone(), rng)
+        .execute::<CurrentAleo, _>(auth.clone(), rng)
         .unwrap();
 
     // execute fee authorization
     let (_fee_result, mut fee_trace) = process
-        .execute::<CurrentAleo, _>(fee_authorization.clone(), rng)
+        .execute::<CurrentAleo, _>(fee_auth.clone(), rng)
         .unwrap();
 
     let execute_time = execute_now.elapsed();
@@ -218,7 +222,7 @@ pub async fn prove_auth_mainnet(
                         "execution": prove.clone(),
                         "fee": fee.clone()
                     });
-                    log::info!("Execution and fee: {:?}", execution_and_fee);
+                    // log::info!("Execution and fee: {:?}", execution_and_fee);
 
                     let value = vec![
                         ethers::abi::Token::Bytes(public_inputs.to_vec()),
@@ -304,31 +308,22 @@ pub async fn prove_auth_testnet(
     let check_program = process.contains_program(program.id());
     assert!(check_program);
 
-    let auth_input = payload.clone().private_input;
-    let secrets = String::from_utf8(auth_input).unwrap();
+    let private_inputs = payload.clone().private_input;
+    let secrets = String::from_utf8(private_inputs).unwrap();
     let value: Value = serde_json::from_str(&secrets).unwrap();
     let public_inputs = payload.ask.prover_data.clone();
     let ask_id = payload.ask_id;
-    let authorization_structure: Result<Authorization<CurrentNetwork>, Error> =
+    let private_input_structure: Result<PrivateInputsTestnet, Error> =
         serde_json::from_value(value);
-    if authorization_structure.is_err() {
+    if private_input_structure.is_err() {
         let generator_response = invalid_input_response(ask_id, public_inputs).await;
         return Ok(generator_response);
     }
 
-    let fee_auth_input = payload.clone().fee_auth;
-    let fee_string = String::from_utf8(fee_auth_input).unwrap();
-    let fee_value: Value = serde_json::from_str(&fee_string).unwrap();
-    let fee_authorization_structure: Result<Authorization<CurrentNetwork>, Error> =
-        serde_json::from_value(fee_value);
-    if fee_authorization_structure.is_err() {
-        let generator_response = invalid_input_response(ask_id, public_inputs).await;
-        return Ok(generator_response);
-    }
-
-    let authorization = authorization_structure.unwrap();
-    let fee_authorization = fee_authorization_structure.unwrap();
-    let auth_transitions = authorization.clone().transitions();
+    let private_input = private_input_structure.unwrap();
+    let fee_auth = private_input.fee_auth;
+    let auth = private_input.auth;
+    let auth_transitions = auth.clone().transitions();
 
     let function = auth_transitions.last().unwrap().1.function_name();
     let program_id = auth_transitions.last().unwrap().1.program_id();
@@ -344,12 +339,12 @@ pub async fn prove_auth_testnet(
 
     // execute authorization
     let (_result, mut trace) = process
-        .execute::<CurrentAleo, _>(authorization.clone(), rng)
+        .execute::<CurrentAleo, _>(auth.clone(), rng)
         .unwrap();
 
     // execute fee authorization
     let (_fee_result, mut fee_trace) = process
-        .execute::<CurrentAleo, _>(fee_authorization.clone(), rng)
+        .execute::<CurrentAleo, _>(fee_auth.clone(), rng)
         .unwrap();
 
     let execute_time = execute_now.elapsed();
@@ -385,7 +380,7 @@ pub async fn prove_auth_testnet(
                         "execution": prove.clone(),
                         "fee": fee.clone()
                     });
-                    log::info!("Execution and fee: {:?}", execution_and_fee);
+                    // log::info!("Execution and fee: {:?}", execution_and_fee);
 
                     let value = vec![
                         ethers::abi::Token::Bytes(public_inputs.to_vec()),

@@ -11,8 +11,6 @@ use serde::{Deserialize, Serialize};
 pub struct ProveAuthInputs {
     pub ask: Ask,
     pub private_input: Vec<u8>,
-    pub network: u16,
-    pub fee_auth: Vec<u8>,
     pub ask_id: u64,
 }
 

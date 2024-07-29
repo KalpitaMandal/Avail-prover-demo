@@ -1,13 +1,13 @@
 use actix_web::{get, http::StatusCode, post, web, HttpResponse, Responder};
 use snarkvm::prelude::{Authorization, Execution, MainnetV0, TestnetV0};
 // use aleo_rust::{Execution, Testnet3};
+// use snarkvm_synthesizer::Authorization;
 use ethers::{
     core::k256::ecdsa::SigningKey,
     signers::{LocalWallet, Signer, Wallet},
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{Error, Value};
-// use snarkvm_synthesizer::Authorization;
 use std::{fs, str::FromStr};
 
 use crate::{
@@ -20,21 +20,15 @@ use crate::{
 // Get generator status from the supervisord
 #[get("/test")]
 async fn test() -> impl Responder {
-    let auth_path = "./app/auth_test_credits.txt".to_string();
-    let content = fs::read_to_string(auth_path).unwrap();
-    log::info!("Input: {:?}", content);
     response("The Avail prover is running!!", StatusCode::OK, None)
 }
 
 #[get("/benchmark")]
 async fn benchmark() -> impl Responder {
     // Fetch authorization
-    let auth_path = "./app/auth_test_credits.txt".to_string();
-    let alt_auth_path = "../app/auth_test_credits.txt".to_string();
+    let auth_path = "./app/auth_test.txt".to_string();
+    let alt_auth_path = "../app/auth_test.txt".to_string();
     let file_content = fs::read_to_string(auth_path).or_else(|_| fs::read_to_string(alt_auth_path));
-
-    log::info!("File content: {:?}", file_content);
-
     if file_content.is_err() {
         log::error!("{:#?}", file_content.err());
         return Err(model::InputError::FileNotFound);
@@ -83,11 +77,12 @@ async fn generate_proof(payload: web::Json<model::ProveAuthInputs>) -> impl Resp
         payload.0.ask_id
     );
 
-    let network = payload.0.network;
+    let prover_data = payload.clone().ask.prover_data.0;
+    let network = String::from_utf8(prover_data.to_vec()).unwrap();
     let prove_result;
-    if network == 1u16 {
+    if network.contains("1u16") {
         prove_result = prover::prove_auth_testnet(payload.0).await;
-    } else if network == 0u16 {
+    } else if network.contains("0u16") {
         prove_result = prover::prove_auth_mainnet(payload.0).await;
     } else {
         return Ok(response(
