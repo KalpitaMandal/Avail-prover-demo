@@ -1,12 +1,13 @@
 use actix_web::{get, http::StatusCode, post, web, HttpResponse, Responder};
-use aleo_rust::{Execution, Testnet3};
+use snarkvm::prelude::{Authorization, Execution, MainnetV0, TestnetV0};
+// use aleo_rust::{Execution, Testnet3};
 use ethers::{
     core::k256::ecdsa::SigningKey,
     signers::{LocalWallet, Signer, Wallet},
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{Error, Value};
-use snarkvm_synthesizer::Authorization;
+// use snarkvm_synthesizer::Authorization;
 use std::{fs, str::FromStr};
 
 use crate::{
@@ -19,15 +20,20 @@ use crate::{
 // Get generator status from the supervisord
 #[get("/test")]
 async fn test() -> impl Responder {
+    let auth_path = "./app/auth_test_credits.txt".to_string();
+    let content = fs::read_to_string(auth_path).unwrap();
+    log::info!("Input: {:?}", content);
     response("The Avail prover is running!!", StatusCode::OK, None)
 }
 
 #[get("/benchmark")]
 async fn benchmark() -> impl Responder {
     // Fetch authorization
-    let auth_path = "./app/auth_test.txt".to_string();
-    let alt_auth_path = "../app/auth_test.txt".to_string();
+    let auth_path = "./app/auth_test_credits.txt".to_string();
+    let alt_auth_path = "../app/auth_test_credits.txt".to_string();
     let file_content = fs::read_to_string(auth_path).or_else(|_| fs::read_to_string(alt_auth_path));
+
+    log::info!("File content: {:?}", file_content);
 
     if file_content.is_err() {
         log::error!("{:#?}", file_content.err());
@@ -37,7 +43,7 @@ async fn benchmark() -> impl Responder {
     let auth_value: Value =
         serde_json::from_str(&file_content.expect("error reading file contents"))
             .expect("error create auth_value");
-    let authorization_structure: Result<Authorization<Testnet3>, Error> =
+    let authorization_structure: Result<Authorization<TestnetV0>, Error> =
         serde_json::from_value(auth_value);
 
     if authorization_structure.is_err() {
@@ -46,7 +52,7 @@ async fn benchmark() -> impl Responder {
     }
 
     log::info!("Printing benchmarks for the avail prover");
-    let benchmark_proof_generation = prover::prove_authorization(
+    let benchmark_proof_generation = prover::prove_benchmark(
         authorization_structure.expect("error creating authorization structure"),
     );
 
@@ -77,7 +83,19 @@ async fn generate_proof(payload: web::Json<model::ProveAuthInputs>) -> impl Resp
         payload.0.ask_id
     );
 
-    let prove_result = prover::prove_auth(payload.0).await;
+    let network = payload.0.network;
+    let prove_result;
+    if network == 1u16 {
+        prove_result = prover::prove_auth_testnet(payload.0).await;
+    } else if network == 0u16 {
+        prove_result = prover::prove_auth_mainnet(payload.0).await;
+    } else {
+        return Ok(response(
+            "Network not implemented",
+            StatusCode::BAD_REQUEST,
+            None,
+        ));
+    }
 
     match prove_result {
         Ok(prove) => {
@@ -120,21 +138,31 @@ async fn generate_proof(payload: web::Json<model::ProveAuthInputs>) -> impl Resp
 #[post("/checkInput")]
 async fn check_input_handler(payload: web::Json<model::InputPayload>) -> impl Responder {
     let private_input = payload.clone().secrets.unwrap();
+    let network = payload.clone().network;
     let auth_value: Value = match serde_json::from_str(&private_input) {
         Ok(data) => data,
         Err(_) => {
             return response("Invalid Authorization", StatusCode::BAD_REQUEST, None);
         }
     };
-    let authorization_structure: Result<Authorization<Testnet3>, Error> =
-        serde_json::from_value(auth_value);
 
-    check_authorization(authorization_structure, None, None).await
+    if network == 1u16 {
+        let authorization_structure: Result<Authorization<TestnetV0>, Error> =
+            serde_json::from_value(auth_value);
+        check_authorization_testnet(authorization_structure, None, None).await
+    } else if network == 0u16 {
+        let authorization_structure: Result<Authorization<MainnetV0>, Error> =
+            serde_json::from_value(auth_value);
+        check_authorization_mainnet(authorization_structure, None, None).await
+    } else {
+        return response("Network not implemented", StatusCode::BAD_REQUEST, None);
+    }
 }
 
 #[post("/getAttestationForInvalidInputs")]
 async fn check_input_with_signature(payload: web::Json<model::AskPayload>) -> impl Responder {
     let encrypted_input = payload.clone().encrypted_secret;
+    let network = payload.clone().network;
     let private_input = hex::decode(encrypted_input).unwrap();
     let acl = hex::decode(payload.clone().acl).unwrap();
     let market_id = payload.clone().ask.market_id;
@@ -170,15 +198,27 @@ async fn check_input_with_signature(payload: web::Json<model::AskPayload>) -> im
         }
     };
 
-    let authorization_structure: Result<Authorization<Testnet3>, Error> =
-        serde_json::from_value(auth_value);
-
-    check_authorization(
-        authorization_structure,
-        Some(payload.0),
-        Some(signer_wallet),
-    )
-    .await
+    if network == 1u16 {
+        let authorization_structure: Result<Authorization<TestnetV0>, Error> =
+            serde_json::from_value(auth_value);
+        check_authorization_testnet(
+            authorization_structure,
+            Some(payload.0),
+            Some(signer_wallet),
+        )
+        .await
+    } else if network == 0u16 {
+        let authorization_structure: Result<Authorization<MainnetV0>, Error> =
+            serde_json::from_value(auth_value);
+        check_authorization_mainnet(
+            authorization_structure,
+            Some(payload.0),
+            Some(signer_wallet),
+        )
+        .await
+    } else {
+        return response("Network not implemented", StatusCode::BAD_REQUEST, None);
+    }
 }
 
 #[post("/checkEncryptedInputs")]
@@ -193,6 +233,7 @@ async fn check_encrypted_input(payload: web::Json<model::EncryptedInputPayload>)
     }
 
     let payload = payload.0;
+    let network = payload.clone().network;
     let (signature, ivs_pub_key) = {
         let message = &payload.market_id;
         let signer_wallet = get_signer();
@@ -244,18 +285,43 @@ async fn check_encrypted_input(payload: web::Json<model::EncryptedInputPayload>)
         let decrypted_data =
             secret_inputs_helpers::decrypt_ecies(&get_secp_private_key(), &encrypted_data).unwrap();
 
-        let authorization_structure: Result<Authorization<Testnet3>, Error> = {
-            let decrypted_secret = String::from_utf8(decrypted_data).unwrap();
-            let auth_value = match serde_json::from_str(&decrypted_secret) {
-                Ok(data) => data,
-                Err(_) => {
-                    return response("Decrypted Data is not valid", StatusCode::BAD_REQUEST, None);
-                }
+        if network == 1u16 {
+            let authorization_structure: Result<Authorization<TestnetV0>, Error> = {
+                let decrypted_secret = String::from_utf8(decrypted_data).unwrap();
+                let auth_value = match serde_json::from_str(&decrypted_secret) {
+                    Ok(data) => data,
+                    Err(_) => {
+                        return response(
+                            "Decrypted Data is not valid",
+                            StatusCode::BAD_REQUEST,
+                            None,
+                        );
+                    }
+                };
+                serde_json::from_value(auth_value)
             };
-            serde_json::from_value(auth_value)
-        };
 
-        check_authorization(authorization_structure, None, None).await
+            check_authorization_testnet(authorization_structure, None, None).await
+        } else if network == 0u16 {
+            let authorization_structure: Result<Authorization<MainnetV0>, Error> = {
+                let decrypted_secret = String::from_utf8(decrypted_data).unwrap();
+                let auth_value = match serde_json::from_str(&decrypted_secret) {
+                    Ok(data) => data,
+                    Err(_) => {
+                        return response(
+                            "Decrypted Data is not valid",
+                            StatusCode::BAD_REQUEST,
+                            None,
+                        );
+                    }
+                };
+                serde_json::from_value(auth_value)
+            };
+
+            check_authorization_mainnet(authorization_structure, None, None).await
+        } else {
+            return response("Network not implemented", StatusCode::BAD_REQUEST, None);
+        }
     } else {
         response(
             "Could not fetch info from matching engine",
@@ -268,31 +334,55 @@ async fn check_encrypted_input(payload: web::Json<model::EncryptedInputPayload>)
 #[post("/verifyInputsAndProof")]
 async fn verify_inputs_and_proof(payload: web::Json<model::VerifyProofPayload>) -> impl Responder {
     let private_input = payload.clone().execution.unwrap();
+    let network = payload.clone().network;
     let auth_value: Value = serde_json::from_str(&private_input).unwrap();
-    let execution_structure: Result<Execution<Testnet3>, Error> =
-        serde_json::from_value(auth_value);
 
-    match execution_structure {
-        Ok(exec) => {
-            let verification_result = prover::verify_execution_proof(exec).await.unwrap();
-            if verification_result {
-                Ok(response("Generated proof is valid", StatusCode::OK, None))
-            } else {
-                Ok(response(
-                    "Generated proof is NOT valid",
-                    StatusCode::OK,
+    if network == 1u16 {
+        let execution_structure: Result<Execution<TestnetV0>, Error> =
+            serde_json::from_value(auth_value);
+
+        match execution_structure {
+            Ok(exec) => {
+                let verification_result =
+                    prover::verify_execution_proof_testnet(exec).await.unwrap();
+                if verification_result {
+                    return response("Generated proof is valid", StatusCode::OK, None);
+                } else {
+                    return response("Generated proof is NOT valid", StatusCode::OK, None);
+                }
+            }
+            Err(_) => {
+                return response(
+                    "The execution input structure is invalid",
+                    StatusCode::BAD_REQUEST,
                     None,
-                ))
+                );
             }
         }
-        Err(_) => {
-            response(
-                "The execution input structure is invalid",
-                StatusCode::BAD_REQUEST,
-                None,
-            );
-            Err(model::InputError::InvalidInputs)
+    } else if network == 0u16 {
+        let execution_structure: Result<Execution<MainnetV0>, Error> =
+            serde_json::from_value(auth_value);
+
+        match execution_structure {
+            Ok(exec) => {
+                let verification_result =
+                    prover::verify_execution_proof_mainnet(exec).await.unwrap();
+                if verification_result {
+                    return response("Generated proof is valid", StatusCode::OK, None);
+                } else {
+                    return response("Generated proof is NOT valid", StatusCode::OK, None);
+                }
+            }
+            Err(_) => {
+                return response(
+                    "The execution input structure is invalid",
+                    StatusCode::BAD_REQUEST,
+                    None,
+                );
+            }
         }
+    } else {
+        return response("Network not implemented", StatusCode::BAD_REQUEST, None);
     }
 }
 
@@ -341,8 +431,47 @@ fn get_secp_private_key() -> Vec<u8> {
     fs::read("./app/secp.sec").unwrap()
 }
 
-async fn check_authorization(
-    authorization_structure: Result<Authorization<Testnet3>, Error>,
+async fn check_authorization_testnet(
+    authorization_structure: Result<Authorization<TestnetV0>, Error>,
+    ask_payload: Option<AskPayload>,
+    signer_wallet: Option<Wallet<SigningKey>>,
+) -> HttpResponse {
+    match authorization_structure {
+        Ok(auth) => {
+            let is_auth_empty = auth.is_empty();
+
+            if is_auth_empty {
+                if ask_payload.is_some() && signer_wallet.is_some() {
+                    return response(
+                        "Payload is NOT valid",
+                        StatusCode::OK,
+                        Some(Value::String(
+                            generate_invalid_input_attestation(
+                                ask_payload.unwrap(),
+                                signer_wallet.unwrap(),
+                            )
+                            .await,
+                        )),
+                    );
+                } else {
+                    return response("Payload is NOT valid", StatusCode::OK, None);
+                }
+            } else {
+                return response("Payload is valid", StatusCode::OK, None);
+            }
+        }
+        Err(_) => {
+            return response(
+                "The authorization input structure is invalid",
+                StatusCode::BAD_REQUEST,
+                None,
+            );
+        }
+    }
+}
+
+async fn check_authorization_mainnet(
+    authorization_structure: Result<Authorization<MainnetV0>, Error>,
     ask_payload: Option<AskPayload>,
     signer_wallet: Option<Wallet<SigningKey>>,
 ) -> HttpResponse {

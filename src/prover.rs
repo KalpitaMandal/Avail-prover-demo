@@ -1,13 +1,20 @@
 use crate::model;
-use aleo_rust::{
-    snarkvm_types::{Process, Program, Testnet3},
-    AleoV0, BlockMemory, BlockStore, Execution, Locator, Query,
-};
+// use aleo_rust::{
+//     snarkvm_types::{Process, Program, Testnet3},
+//     AleoV0, BlockMemory, BlockStore, Execution, Locator, Query,
+// };
 use ethers::signers::{LocalWallet, Signer};
 use ethers::types::Bytes;
 use rand::thread_rng;
-use serde_json::{Error, Value};
-use snarkvm_synthesizer::Authorization;
+use serde_json::{json, Error, Value};
+use snarkvm::{
+    circuit::{AleoTestnetV0, AleoV0},
+    ledger::query::Query,
+    ledger::store::helpers::memory::BlockMemory,
+    ledger::store::BlockStore,
+    prelude::{Authorization, Execution, Locator, MainnetV0, Process, Program, TestnetV0},
+};
+// use snarkvm_synthesizer::Authorization;
 use std::{fs, str::FromStr, time::Instant};
 
 pub struct GenerateProofResponse {
@@ -22,16 +29,16 @@ pub struct BenchmarkResponse {
     pub proof_generation_time: u128,
 }
 
-pub fn prove_authorization(
-    auth: Authorization<Testnet3>,
+pub fn prove_benchmark(
+    auth: Authorization<TestnetV0>,
 ) -> Result<BenchmarkResponse, model::InputError> {
     let rng = &mut thread_rng();
     log::info!("Setup for proof generation started...");
     let setup_now = Instant::now();
 
     // Defining a simple hello program with only a hello function
-    let program_path = "./app/test_hello.txt".to_string();
-    let alt_program_path = "../app/test_hello.txt".to_string();
+    let program_path = "./app/credits.txt".to_string();
+    let alt_program_path = "../app/credits.txt".to_string();
     let file_content =
         fs::read_to_string(program_path).or_else(|_| fs::read_to_string(alt_program_path));
     if file_content.is_err() {
@@ -42,7 +49,7 @@ pub fn prove_authorization(
     let program = Program::from_str(&test_program).unwrap();
 
     // initializing a new process
-    let mut process: Process<Testnet3> = Process::load().unwrap();
+    let mut process: Process<TestnetV0> = Process::load().unwrap();
     process.add_program(&program).unwrap();
 
     // Check if program was added correctly
@@ -63,7 +70,9 @@ pub fn prove_authorization(
     log::info!("Execution started...");
     let execute_now = Instant::now();
 
-    let (_result, mut trace) = process.execute::<AleoV0, _>(auth.clone(), rng).unwrap();
+    let (_result, mut trace) = process
+        .execute::<AleoTestnetV0, _>(auth.clone(), rng)
+        .unwrap();
 
     let execute_time = execute_now.elapsed();
     log::info!("Execution time: {:?}ms", execute_time.as_millis());
@@ -71,9 +80,9 @@ pub fn prove_authorization(
     let prove_now = Instant::now();
 
     let locator = Locator::new(*program_id, *function);
-    let block_store = BlockStore::<Testnet3, BlockMemory<_>>::open(None).unwrap();
+    let block_store = BlockStore::<TestnetV0, BlockMemory<_>>::open(None).unwrap();
     trace.prepare(Query::from(block_store)).unwrap();
-    let prove_result = trace.prove_execution::<AleoV0, _>(&locator.to_string(), rng);
+    let prove_result = trace.prove_execution::<AleoTestnetV0, _>(&locator.to_string(), rng);
 
     match prove_result {
         Ok(prove) => {
@@ -94,10 +103,13 @@ pub fn prove_authorization(
     }
 }
 
-pub async fn prove_auth(
+pub async fn prove_auth_mainnet(
     payload: model::ProveAuthInputs,
 ) -> Result<GenerateProofResponse, model::InputError> {
     let rng = &mut thread_rng();
+    type CurrentNetwork = MainnetV0;
+    type CurrentAleo = AleoV0;
+
     let read_secp_private_key = fs::read("./app/secp.sec").unwrap();
     let secp_private_key = secp256k1::SecretKey::from_slice(&read_secp_private_key)
         .unwrap()
@@ -105,9 +117,9 @@ pub async fn prove_auth(
         .to_string();
     let signer_wallet = secp_private_key.parse::<LocalWallet>().unwrap();
 
-    // Defining a complex program with 4 transitions
-    let multi_program_path = "./app/multi_txn_t1.txt".to_string();
-    let alt_multi_program_path = "../app/multi_txn_t1.txt".to_string();
+    // Loading credits program
+    let multi_program_path = "./app/credits.txt".to_string();
+    let alt_multi_program_path = "../app/credits.txt".to_string();
     let file_content = fs::read_to_string(multi_program_path)
         .or_else(|_| fs::read_to_string(alt_multi_program_path));
     if file_content.is_err() {
@@ -117,32 +129,8 @@ pub async fn prove_auth(
     let test_program = file_content.unwrap();
     let program = Program::from_str(&test_program).unwrap();
 
-    let helper_program_path = "./app/helper.txt".to_string();
-    let alt_helper_program_path = "../app/helper.txt".to_string();
-    let file_content = fs::read_to_string(helper_program_path)
-        .or_else(|_| fs::read_to_string(alt_helper_program_path));
-    if file_content.is_err() {
-        log::error!("{:#?}", file_content.err());
-        return Err(model::InputError::FileNotFound);
-    }
-    let im_1 = file_content.unwrap();
-    let im_program_1 = Program::from_str(&im_1).unwrap();
-
-    let fees_program_path = "./app/fees.txt".to_string();
-    let alt_fees_program_path = "../app/fees.txt".to_string();
-    let file_content = fs::read_to_string(fees_program_path)
-        .or_else(|_| fs::read_to_string(alt_fees_program_path));
-    if file_content.is_err() {
-        log::error!("{:#?}", file_content.err());
-        return Err(model::InputError::FileNotFound);
-    }
-    let im_2 = file_content.unwrap();
-    let im_program_2 = Program::from_str(&im_2).unwrap();
-
     // initializing a new process
-    let mut process: Process<Testnet3> = Process::load().unwrap();
-    process.add_program(&im_program_1).unwrap();
-    process.add_program(&im_program_2).unwrap();
+    let mut process = Process::<CurrentNetwork>::load().unwrap();
     process.add_program(&program).unwrap();
 
     // Check if program was added correctly
@@ -154,17 +142,30 @@ pub async fn prove_auth(
     let value: Value = serde_json::from_str(&secrets).unwrap();
     let public_inputs = payload.ask.prover_data.clone();
     let ask_id = payload.ask_id;
-    let authorization_structure: Result<Authorization<Testnet3>, Error> =
+    let authorization_structure: Result<Authorization<CurrentNetwork>, Error> =
         serde_json::from_value(value);
     if authorization_structure.is_err() {
         let generator_response = invalid_input_response(ask_id, public_inputs).await;
         return Ok(generator_response);
     }
+
+    let fee_auth_input = payload.clone().fee_auth;
+    let fee_string = String::from_utf8(fee_auth_input).unwrap();
+    let fee_value: Value = serde_json::from_str(&fee_string).unwrap();
+    let fee_authorization_structure: Result<Authorization<CurrentNetwork>, Error> =
+        serde_json::from_value(fee_value);
+    if fee_authorization_structure.is_err() {
+        let generator_response = invalid_input_response(ask_id, public_inputs).await;
+        return Ok(generator_response);
+    }
+
     let authorization = authorization_structure.unwrap();
+    let fee_authorization = fee_authorization_structure.unwrap();
     let auth_transitions = authorization.clone().transitions();
 
     let function = auth_transitions.last().unwrap().1.function_name();
     let program_id = auth_transitions.last().unwrap().1.program_id();
+
     log::info!(
         "Executing function {:?} from program {:?}",
         function,
@@ -174,8 +175,14 @@ pub async fn prove_auth(
     log::info!("Execution started...");
     let execute_now = Instant::now();
 
+    // execute authorization
     let (_result, mut trace) = process
-        .execute::<AleoV0, _>(authorization.clone(), rng)
+        .execute::<CurrentAleo, _>(authorization.clone(), rng)
+        .unwrap();
+
+    // execute fee authorization
+    let (_fee_result, mut fee_trace) = process
+        .execute::<CurrentAleo, _>(fee_authorization.clone(), rng)
         .unwrap();
 
     let execute_time = execute_now.elapsed();
@@ -184,41 +191,71 @@ pub async fn prove_auth(
     let prove_now = Instant::now();
 
     let locator = Locator::new(*program_id, *function);
-    let block_store = BlockStore::<Testnet3, BlockMemory<_>>::open(None).unwrap();
-    trace.prepare(Query::from(block_store)).unwrap();
-    let prove_result = trace.prove_execution::<AleoV0, _>(&locator.to_string(), rng);
+    let block_store = BlockStore::<CurrentNetwork, BlockMemory<_>>::open(None).unwrap();
+    trace.prepare(Query::from(block_store.clone())).unwrap();
+    fee_trace.prepare(Query::from(block_store.clone())).unwrap();
+    let prove_result = trace.prove_execution::<CurrentAleo, _>(&locator.to_string(), rng);
 
     match prove_result {
         Ok(prove) => {
-            let prove_time = prove_now.elapsed();
-            log::info!("Proof generation time: {:?}ms", prove_time.as_millis());
-            let proof: &aleo_rust::Proof<Testnet3> = prove.proof().unwrap();
-            log::info!("Generated Proof: {:?}", proof.clone());
-            process.verify_execution(&prove).unwrap();
-            log::info!("Proof verification status : {:?}", true);
+            let fee_prove_result = fee_trace.prove_fee::<CurrentAleo, _>(rng);
+            // log::info!("Execution: {:?}", prove.clone());
+            match fee_prove_result {
+                Ok(fee) => {
+                    // log::info!("Fee: {:?}", fee.clone());
+                    let prove_time = prove_now.elapsed();
+                    log::info!("Proof generation time: {:?}ms", prove_time.as_millis());
+                    process.verify_execution(&prove).unwrap();
+                    log::info!("Proof verification status : {:?}", true);
+                    let deployment_or_execution_id =
+                        fee.clone().deployment_or_execution_id().unwrap();
+                    process
+                        .verify_fee(&fee, deployment_or_execution_id)
+                        .unwrap();
+                    log::info!("Fee verification status: {:?}", true);
 
-            let value = vec![
-                ethers::abi::Token::Bytes(public_inputs.to_vec()),
-                ethers::abi::Token::Bytes(prove.to_string().as_bytes().to_vec()),
-            ];
-            let encoded = ethers::abi::encode(&value);
-            let digest = ethers::utils::keccak256(encoded);
+                    let execution_and_fee = json!({
+                        "execution": prove.clone(),
+                        "fee": fee.clone()
+                    });
+                    log::info!("Execution and fee: {:?}", execution_and_fee);
 
-            let signature = signer_wallet
-                .sign_message(ethers::types::H256(digest))
-                .await
-                .unwrap();
+                    let value = vec![
+                        ethers::abi::Token::Bytes(public_inputs.to_vec()),
+                        ethers::abi::Token::Bytes(
+                            execution_and_fee.to_string().as_bytes().to_vec(),
+                        ),
+                    ];
+                    let encoded = ethers::abi::encode(&value);
+                    let digest = ethers::utils::keccak256(encoded);
 
-            let execution_response = GenerateProofResponse {
-                input: Some(ethers::types::Bytes::from(public_inputs.to_vec())),
-                execution: Some(ethers::types::Bytes::from(
-                    prove.to_string().as_bytes().to_vec(),
-                )),
-                verification_status: true,
-                signature: Some("0x".to_owned() + &signature.to_string()),
-            };
+                    let signature = signer_wallet
+                        .sign_message(ethers::types::H256(digest))
+                        .await
+                        .unwrap();
 
-            Ok(execution_response)
+                    let execution_response = GenerateProofResponse {
+                        input: Some(ethers::types::Bytes::from(public_inputs.to_vec())),
+                        execution: Some(ethers::types::Bytes::from(
+                            execution_and_fee.to_string().as_bytes().to_vec(),
+                        )),
+                        verification_status: true,
+                        signature: Some("0x".to_owned() + &signature.to_string()),
+                    };
+
+                    Ok(execution_response)
+                }
+                Err(e) => {
+                    println!("Error: {:?}", e);
+                    let execution_response = GenerateProofResponse {
+                        input: Some(payload.ask.prover_data.clone()),
+                        execution: None,
+                        verification_status: false,
+                        signature: None,
+                    };
+                    Ok(execution_response)
+                }
+            }
         }
         Err(e) => {
             println!("Error: {:?}", e);
@@ -233,13 +270,23 @@ pub async fn prove_auth(
     }
 }
 
-pub async fn verify_execution_proof(
-    payload: Execution<Testnet3>,
-) -> Result<bool, model::InputError> {
+pub async fn prove_auth_testnet(
+    payload: model::ProveAuthInputs,
+) -> Result<GenerateProofResponse, model::InputError> {
     let rng = &mut thread_rng();
-    // Defining a complex program with 4 transitions
-    let multi_program_path = "./app/multi_txn_t1.txt".to_string();
-    let alt_multi_program_path = "../app/multi_txn_t1.txt".to_string();
+    type CurrentNetwork = TestnetV0;
+    type CurrentAleo = AleoTestnetV0;
+
+    let read_secp_private_key = fs::read("./app/secp.sec").unwrap();
+    let secp_private_key = secp256k1::SecretKey::from_slice(&read_secp_private_key)
+        .unwrap()
+        .display_secret()
+        .to_string();
+    let signer_wallet = secp_private_key.parse::<LocalWallet>().unwrap();
+
+    // Loading credits program
+    let multi_program_path = "./app/credits.txt".to_string();
+    let alt_multi_program_path = "../app/credits.txt".to_string();
     let file_content = fs::read_to_string(multi_program_path)
         .or_else(|_| fs::read_to_string(alt_multi_program_path));
     if file_content.is_err() {
@@ -249,32 +296,167 @@ pub async fn verify_execution_proof(
     let test_program = file_content.unwrap();
     let program = Program::from_str(&test_program).unwrap();
 
-    let helper_program_path = "./app/helper.txt".to_string();
-    let alt_helper_program_path = "../app/helper.txt".to_string();
-    let file_content = fs::read_to_string(helper_program_path)
-        .or_else(|_| fs::read_to_string(alt_helper_program_path));
-    if file_content.is_err() {
-        log::error!("{:#?}", file_content.err());
-        return Err(model::InputError::FileNotFound);
-    }
-    let im_1 = file_content.unwrap();
-    let im_program_1 = Program::from_str(&im_1).unwrap();
+    // initializing a new process
+    let mut process = Process::<CurrentNetwork>::load().unwrap();
+    process.add_program(&program).unwrap();
 
-    let fees_program_path = "./app/fees.txt".to_string();
-    let alt_fees_program_path = "../app/fees.txt".to_string();
-    let file_content = fs::read_to_string(fees_program_path)
-        .or_else(|_| fs::read_to_string(alt_fees_program_path));
+    // Check if program was added correctly
+    let check_program = process.contains_program(program.id());
+    assert!(check_program);
+
+    let auth_input = payload.clone().private_input;
+    let secrets = String::from_utf8(auth_input).unwrap();
+    let value: Value = serde_json::from_str(&secrets).unwrap();
+    let public_inputs = payload.ask.prover_data.clone();
+    let ask_id = payload.ask_id;
+    let authorization_structure: Result<Authorization<CurrentNetwork>, Error> =
+        serde_json::from_value(value);
+    if authorization_structure.is_err() {
+        let generator_response = invalid_input_response(ask_id, public_inputs).await;
+        return Ok(generator_response);
+    }
+
+    let fee_auth_input = payload.clone().fee_auth;
+    let fee_string = String::from_utf8(fee_auth_input).unwrap();
+    let fee_value: Value = serde_json::from_str(&fee_string).unwrap();
+    let fee_authorization_structure: Result<Authorization<CurrentNetwork>, Error> =
+        serde_json::from_value(fee_value);
+    if fee_authorization_structure.is_err() {
+        let generator_response = invalid_input_response(ask_id, public_inputs).await;
+        return Ok(generator_response);
+    }
+
+    let authorization = authorization_structure.unwrap();
+    let fee_authorization = fee_authorization_structure.unwrap();
+    let auth_transitions = authorization.clone().transitions();
+
+    let function = auth_transitions.last().unwrap().1.function_name();
+    let program_id = auth_transitions.last().unwrap().1.program_id();
+
+    log::info!(
+        "Executing function {:?} from program {:?}",
+        function,
+        program_id
+    );
+
+    log::info!("Execution started...");
+    let execute_now = Instant::now();
+
+    // execute authorization
+    let (_result, mut trace) = process
+        .execute::<CurrentAleo, _>(authorization.clone(), rng)
+        .unwrap();
+
+    // execute fee authorization
+    let (_fee_result, mut fee_trace) = process
+        .execute::<CurrentAleo, _>(fee_authorization.clone(), rng)
+        .unwrap();
+
+    let execute_time = execute_now.elapsed();
+    log::info!("Execution time: {:?}ms", execute_time.as_millis());
+    log::info!("Proof generation started...");
+    let prove_now = Instant::now();
+
+    let locator = Locator::new(*program_id, *function);
+    let block_store = BlockStore::<CurrentNetwork, BlockMemory<_>>::open(None).unwrap();
+    trace.prepare(Query::from(block_store.clone())).unwrap();
+    fee_trace.prepare(Query::from(block_store.clone())).unwrap();
+    let prove_result = trace.prove_execution::<CurrentAleo, _>(&locator.to_string(), rng);
+
+    match prove_result {
+        Ok(prove) => {
+            let fee_prove_result = fee_trace.prove_fee::<CurrentAleo, _>(rng);
+            // log::info!("Execution: {:?}", prove.clone());
+            match fee_prove_result {
+                Ok(fee) => {
+                    // log::info!("Fee: {:?}", fee.clone());
+                    let prove_time = prove_now.elapsed();
+                    log::info!("Proof generation time: {:?}ms", prove_time.as_millis());
+                    process.verify_execution(&prove).unwrap();
+                    log::info!("Proof verification status : {:?}", true);
+                    let deployment_or_execution_id =
+                        fee.clone().deployment_or_execution_id().unwrap();
+                    process
+                        .verify_fee(&fee, deployment_or_execution_id)
+                        .unwrap();
+                    log::info!("Fee verification status: {:?}", true);
+
+                    let execution_and_fee = json!({
+                        "execution": prove.clone(),
+                        "fee": fee.clone()
+                    });
+                    log::info!("Execution and fee: {:?}", execution_and_fee);
+
+                    let value = vec![
+                        ethers::abi::Token::Bytes(public_inputs.to_vec()),
+                        ethers::abi::Token::Bytes(
+                            execution_and_fee.to_string().as_bytes().to_vec(),
+                        ),
+                    ];
+                    let encoded = ethers::abi::encode(&value);
+                    let digest = ethers::utils::keccak256(encoded);
+
+                    let signature = signer_wallet
+                        .sign_message(ethers::types::H256(digest))
+                        .await
+                        .unwrap();
+
+                    let execution_response = GenerateProofResponse {
+                        input: Some(ethers::types::Bytes::from(public_inputs.to_vec())),
+                        execution: Some(ethers::types::Bytes::from(
+                            execution_and_fee.to_string().as_bytes().to_vec(),
+                        )),
+                        verification_status: true,
+                        signature: Some("0x".to_owned() + &signature.to_string()),
+                    };
+
+                    Ok(execution_response)
+                }
+                Err(e) => {
+                    println!("Error: {:?}", e);
+                    let execution_response = GenerateProofResponse {
+                        input: Some(payload.ask.prover_data.clone()),
+                        execution: None,
+                        verification_status: false,
+                        signature: None,
+                    };
+                    Ok(execution_response)
+                }
+            }
+        }
+        Err(e) => {
+            println!("Error: {:?}", e);
+            let execution_response = GenerateProofResponse {
+                input: Some(payload.ask.prover_data.clone()),
+                execution: None,
+                verification_status: false,
+                signature: None,
+            };
+            Ok(execution_response)
+        }
+    }
+}
+
+pub async fn verify_execution_proof_testnet(
+    payload: Execution<TestnetV0>,
+) -> Result<bool, model::InputError> {
+    let rng = &mut thread_rng();
+    type CurrentNetwork = TestnetV0;
+    type CurrentAleo = AleoTestnetV0;
+    // Loading credits program
+    let multi_program_path = "./app/credits.txt".to_string();
+    let alt_multi_program_path = "../app/credits.txt".to_string();
+    let file_content = fs::read_to_string(multi_program_path)
+        .or_else(|_| fs::read_to_string(alt_multi_program_path));
     if file_content.is_err() {
         log::error!("{:#?}", file_content.err());
         return Err(model::InputError::FileNotFound);
     }
-    let im_2 = file_content.unwrap();
-    let im_program_2 = Program::from_str(&im_2).unwrap();
+    let test_program = file_content.unwrap();
+    let program = Program::from_str(&test_program).unwrap();
 
     // initializing a new process
-    let mut process: Process<Testnet3> = Process::load().unwrap();
-    process.add_program(&im_program_1).unwrap();
-    process.add_program(&im_program_2).unwrap();
+    let mut process = Process::<CurrentNetwork>::load().unwrap();
     process.add_program(&program).unwrap();
 
     // Check if program was added correctly
@@ -287,7 +469,50 @@ pub async fn verify_execution_proof(
     let function_name = exec_transitions.clone().last().unwrap().function_name();
     let program_id = exec_transitions.clone().last().unwrap().program_id();
 
-    let _ = process.synthesize_key::<AleoV0, _>(program_id, function_name, rng);
+    let _ = process.synthesize_key::<CurrentAleo, _>(program_id, function_name, rng);
+
+    let verification = process.verify_execution(&payload);
+    log::info!("Verifiction result: {:?}", verification);
+
+    match verification {
+        Ok(_) => Ok(true),
+        Err(_) => Ok(false),
+    }
+}
+
+pub async fn verify_execution_proof_mainnet(
+    payload: Execution<MainnetV0>,
+) -> Result<bool, model::InputError> {
+    let rng = &mut thread_rng();
+    type CurrentNetwork = MainnetV0;
+    type CurrentAleo = AleoV0;
+    // Loading credits program
+    let multi_program_path = "./app/credits.txt".to_string();
+    let alt_multi_program_path = "../app/credits.txt".to_string();
+    let file_content = fs::read_to_string(multi_program_path)
+        .or_else(|_| fs::read_to_string(alt_multi_program_path));
+    if file_content.is_err() {
+        log::error!("{:#?}", file_content.err());
+        return Err(model::InputError::FileNotFound);
+    }
+    let test_program = file_content.unwrap();
+    let program = Program::from_str(&test_program).unwrap();
+
+    // initializing a new process
+    let mut process = Process::<CurrentNetwork>::load().unwrap();
+    process.add_program(&program).unwrap();
+
+    // Check if program was added correctly
+    let check_program = process.contains_program(program.id());
+    assert!(check_program);
+
+    let execution = payload.clone();
+
+    let exec_transitions: Vec<_> = execution.transitions().collect();
+    let function_name = exec_transitions.clone().last().unwrap().function_name();
+    let program_id = exec_transitions.clone().last().unwrap().program_id();
+
+    let _ = process.synthesize_key::<CurrentAleo, _>(program_id, function_name, rng);
 
     let verification = process.verify_execution(&payload);
     log::info!("Verifiction result: {:?}", verification);

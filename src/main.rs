@@ -78,7 +78,8 @@ mod tests {
     #[actix_rt::test]
     async fn test_generate_proof() {
         let app = test::init_service(App::new().service(handler::generate_proof)).await;
-        let private_input = fs::read("./app/checkInput.txt").await.unwrap();
+        let private_input = fs::read("./app/auth_test_credits.txt").await.unwrap();
+        let fee = fs::read("./app/auth_fee.txt").await.unwrap();
 
         let ask: Ask = Ask {
             market_id: 1.into(),
@@ -93,6 +94,8 @@ mod tests {
         let payload: model::ProveAuthInputs = model::ProveAuthInputs {
             ask,
             private_input,
+            network: 1,
+            fee_auth: fee,
             ask_id: 1,
         };
         let req = test::TestRequest::post()
@@ -111,6 +114,7 @@ mod tests {
 
         let secrets = fs::read_to_string("./app/checkInput.txt").await.unwrap();
         let payload = model::InputPayload {
+            network: 1,
             secrets: Some(secrets),
         };
 
@@ -139,6 +143,7 @@ mod tests {
 
         let secrets = "this is an invalid input".into();
         let payload = model::InputPayload {
+            network: 1,
             secrets: Some(secrets),
         };
 
@@ -185,6 +190,7 @@ mod tests {
         let ask_payload = model::AskPayload {
             ask_id: 1,
             ask,
+            network: 1,
             encrypted_secret: hex::encode(encrypted_data.encrypted_data),
             acl: hex::encode(encrypted_data.acl_data),
         };
@@ -231,6 +237,7 @@ mod tests {
         let ask_payload = model::AskPayload {
             ask_id: 1,
             ask,
+            network: 1,
             encrypted_secret: hex::encode(encrypted_data.encrypted_data),
             acl: hex::encode(encrypted_data.acl_data),
         };
@@ -273,6 +280,7 @@ mod tests {
             acl: hex::encode(encrypted_data.acl_data),
             encrypted_secrets: hex::encode(encrypted_data.encrypted_data),
             me_decryption_url: "http://localhost:3000/decryptRequest".into(),
+            network: 1,
             market_id: "19".into(),
         };
 
@@ -313,6 +321,7 @@ mod tests {
             acl: hex::encode(encrypted_data.acl_data),
             encrypted_secrets: hex::encode(encrypted_data.encrypted_data),
             me_decryption_url: "http://localhost:3000/decryptRequest".into(),
+            network: 1,
             market_id: "19".into(),
         };
 
