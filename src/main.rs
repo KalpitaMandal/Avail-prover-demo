@@ -53,7 +53,7 @@ mod tests {
         let result_json: Value = serde_json::from_slice(&result).unwrap();
         let expected_json = json!({
             "message": "The Avail prover is running!!",
-            "data": null
+            "data": "Avail Prover is running!"
         });
 
         assert_eq!(result_json, expected_json);
