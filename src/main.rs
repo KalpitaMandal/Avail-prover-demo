@@ -161,7 +161,9 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_check_input_with_signature() {
-        let app = test::init_service(App::new().service(handler::check_input_with_signature)).await;
+        let app =
+            test::init_service(App::new().service(handler::get_attestation_for_invalid_inputs))
+                .await;
         let data_to_encrypt = fs::read("./app/checkInput.txt").await.unwrap();
         // bit un-intutive, but rn this seems only way to test
         let receiver_pub_key = fs::read("./app/secp.pub").await.unwrap();
@@ -208,7 +210,9 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_check_wrong_input_with_signature() {
-        let app = test::init_service(App::new().service(handler::check_input_with_signature)).await;
+        let app =
+            test::init_service(App::new().service(handler::get_attestation_for_invalid_inputs))
+                .await;
         let data_to_encrypt = vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 1, 2, 3, 4, 5]; // these are invalid inputs
                                                                               // bit un-intutive, but rn this seems only way to test
         let receiver_pub_key = fs::read("./app/secp.pub").await.unwrap();

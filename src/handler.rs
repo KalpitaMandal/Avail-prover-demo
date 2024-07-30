@@ -136,7 +136,7 @@ async fn check_input_handler(
 }
 
 #[post("/getAttestationForInvalidInputs")]
-async fn check_input_with_signature(
+async fn get_attestation_for_invalid_inputs(
     payload: web::Json<kalypso_ivs_models::models::AskPayload>,
 ) -> impl Responder {
     let encrypted_input = payload.clone().encrypted_secret;
@@ -315,7 +315,7 @@ pub fn routes(conf: &mut web::ServiceConfig) {
         .service(benchmark)
         .service(generate_proof)
         .service(check_input_handler)
-        .service(check_input_with_signature)
+        .service(get_attestation_for_invalid_inputs)
         .service(check_encrypted_input)
         .service(verify_inputs_and_proof);
     conf.service(scope);
