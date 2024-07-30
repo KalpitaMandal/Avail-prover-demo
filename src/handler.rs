@@ -120,9 +120,9 @@ async fn generate_proof(
 
 #[post("/checkInput")]
 async fn check_input_handler(
-    payload: web::Json<kalypso_ivs_models::models::SecretInputPayload>,
+    payload: web::Json<kalypso_ivs_models::models::InputPayload>,
 ) -> impl Responder {
-    let private_input = payload.clone().secrets;
+    let private_input = payload.clone().secrets.unwrap();
     let auth_value: Value = match serde_json::from_str(&private_input) {
         Ok(data) => data,
         Err(_) => {
@@ -277,9 +277,9 @@ async fn check_encrypted_input(
 
 #[post("/verifyInputsAndProof")]
 async fn verify_inputs_and_proof(
-    payload: web::Json<kalypso_ivs_models::models::VerifyProofPayload>,
+    payload: web::Json<kalypso_ivs_models::models::VerifyInputsAndProof>,
 ) -> impl Responder {
-    let private_input = payload.clone().execution.unwrap();
+    let private_input = payload.clone().private_input;
     let auth_value: Value = serde_json::from_str(&private_input).unwrap();
     let execution_structure: Result<Execution<Testnet3>, Error> =
         serde_json::from_value(auth_value);

@@ -36,7 +36,7 @@ mod tests {
     use actix_web::{test, App};
     use bindings::shared_types::Ask;
     use kalypso_generator_models::models::AskInputPayload;
-    use kalypso_ivs_models::models::{AskPayload, EncryptedInputPayload, SecretInputPayload};
+    use kalypso_ivs_models::models::{AskPayload, EncryptedInputPayload, InputPayload};
     use log::warn;
     use serde::{Deserialize, Serialize};
     use serde_json::{json, Value};
@@ -112,7 +112,10 @@ mod tests {
         let app = test::init_service(App::new().service(handler::check_input_handler)).await;
 
         let secrets = fs::read_to_string("./app/checkInput.txt").await.unwrap();
-        let payload = SecretInputPayload { secrets };
+        let payload = InputPayload {
+            public: "".into(),
+            secrets: Some(secrets),
+        };
 
         let req = test::TestRequest::post()
             .uri("/checkInput")
@@ -138,7 +141,10 @@ mod tests {
         let app = test::init_service(App::new().service(handler::check_input_handler)).await;
 
         let secrets = "this is an invalid input".into();
-        let payload = SecretInputPayload { secrets };
+        let payload = InputPayload {
+            public: "".into(),
+            secrets: Some(secrets),
+        };
 
         let req = test::TestRequest::post()
             .uri("/checkInput")
