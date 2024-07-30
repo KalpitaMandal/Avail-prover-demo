@@ -1,24 +1,27 @@
+use crate::{
+    model::{self},
+    prover,
+};
 use actix_web::{get, http::StatusCode, post, web, HttpResponse, Responder};
 use aleo_rust::{Execution, Testnet3};
 use ethers::{
     core::k256::ecdsa::SigningKey,
     signers::{LocalWallet, Signer, Wallet},
 };
+use kalypso_helper::response::response;
 use serde::{Deserialize, Serialize};
 use serde_json::{Error, Value};
 use snarkvm_synthesizer::Authorization;
 use std::{fs, str::FromStr};
 
-use crate::{
-    model::{self},
-    prover,
-    response::response,
-};
-
 // Get generator status from the supervisord
 #[get("/test")]
 async fn test() -> impl Responder {
-    response("The Avail prover is running!!", StatusCode::OK, None)
+    response(
+        "The Avail prover is running!!",
+        StatusCode::OK,
+        Some("Avail Prover is running!".into()),
+    )
 }
 
 #[get("/benchmark")]

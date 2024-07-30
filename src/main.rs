@@ -1,7 +1,6 @@
 mod handler;
 mod model;
 mod prover;
-mod response;
 
 use actix_web::{App, HttpServer};
 use dotenv::dotenv;
