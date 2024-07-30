@@ -3,42 +3,7 @@ use actix_web::{
     http::{header::ContentType, StatusCode},
     HttpResponse,
 };
-use bindings::shared_types::Ask;
 use derive_more::{Display, Error};
-use serde::{Deserialize, Serialize};
-
-#[derive(Serialize, Debug, Deserialize, Clone)]
-pub struct ProveAuthInputs {
-    pub ask: Ask,
-    pub private_input: Vec<u8>,
-    pub ask_id: u64,
-}
-
-#[derive(Serialize, Debug, Deserialize, Clone)]
-pub struct InputPayload {
-    pub secrets: Option<String>,
-}
-
-#[derive(Serialize, Debug, Deserialize, Clone)]
-pub struct EncryptedInputPayload {
-    pub acl: String,
-    pub encrypted_secrets: String,
-    pub me_decryption_url: String,
-    pub market_id: String,
-}
-
-#[derive(Serialize, Debug, Deserialize, Clone)]
-pub struct AskPayload {
-    pub ask: Ask,
-    pub encrypted_secret: String,
-    pub acl: String,
-    pub ask_id: u64,
-}
-
-#[derive(Serialize, Debug, Deserialize, Clone)]
-pub struct VerifyProofPayload {
-    pub execution: Option<String>,
-}
 
 #[derive(Debug, Display, Error)]
 pub enum InputError {

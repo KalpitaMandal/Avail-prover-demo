@@ -95,7 +95,7 @@ pub fn prove_authorization(
 }
 
 pub async fn prove_auth(
-    payload: model::ProveAuthInputs,
+    payload: kalypso_generator_models::models::AskInputPayload,
 ) -> Result<GenerateProofResponse, model::InputError> {
     let rng = &mut thread_rng();
     let read_secp_private_key = fs::read("./app/secp.sec").unwrap();

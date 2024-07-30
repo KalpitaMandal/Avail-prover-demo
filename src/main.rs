@@ -32,9 +32,11 @@ async fn main() -> std::io::Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{handler, model};
+    use crate::handler;
     use actix_web::{test, App};
     use bindings::shared_types::Ask;
+    use kalypso_generator_models::models::AskInputPayload;
+    use kalypso_ivs_models::models::{AskPayload, EncryptedInputPayload, SecretInputPayload};
     use log::warn;
     use serde::{Deserialize, Serialize};
     use serde_json::{json, Value};
@@ -90,7 +92,7 @@ mod tests {
             prover_data: [1, 2, 3, 4].into(),
         };
 
-        let payload: model::ProveAuthInputs = model::ProveAuthInputs {
+        let payload: AskInputPayload = AskInputPayload {
             ask,
             private_input,
             ask_id: 1,
@@ -110,9 +112,7 @@ mod tests {
         let app = test::init_service(App::new().service(handler::check_input_handler)).await;
 
         let secrets = fs::read_to_string("./app/checkInput.txt").await.unwrap();
-        let payload = model::InputPayload {
-            secrets: Some(secrets),
-        };
+        let payload = SecretInputPayload { secrets };
 
         let req = test::TestRequest::post()
             .uri("/checkInput")
@@ -138,9 +138,7 @@ mod tests {
         let app = test::init_service(App::new().service(handler::check_input_handler)).await;
 
         let secrets = "this is an invalid input".into();
-        let payload = model::InputPayload {
-            secrets: Some(secrets),
-        };
+        let payload = SecretInputPayload { secrets };
 
         let req = test::TestRequest::post()
             .uri("/checkInput")
@@ -183,7 +181,7 @@ mod tests {
             refund_address: "0000dead0000dead0000dead0000dead0000dead".parse().unwrap(),
             prover_data: [1, 2, 3, 4].into(),
         };
-        let ask_payload = model::AskPayload {
+        let ask_payload = AskPayload {
             ask_id: 1,
             ask,
             encrypted_secret: hex::encode(encrypted_data.encrypted_data),
@@ -230,7 +228,7 @@ mod tests {
             refund_address: "0000dead0000dead0000dead0000dead0000dead".parse().unwrap(),
             prover_data: [1, 2, 3, 4].into(),
         };
-        let ask_payload = model::AskPayload {
+        let ask_payload = AskPayload {
             ask_id: 1,
             ask,
             encrypted_secret: hex::encode(encrypted_data.encrypted_data),
@@ -272,7 +270,7 @@ mod tests {
             )
             .expect("Unable to encrypt the data");
 
-        let payload: model::EncryptedInputPayload = model::EncryptedInputPayload {
+        let payload: EncryptedInputPayload = EncryptedInputPayload {
             acl: hex::encode(encrypted_data.acl_data),
             encrypted_secrets: hex::encode(encrypted_data.encrypted_data),
             me_decryption_url: "http://13.201.131.193:3000/decryptRequest".into(),
@@ -315,7 +313,7 @@ mod tests {
             )
             .unwrap();
 
-        let payload: model::EncryptedInputPayload = model::EncryptedInputPayload {
+        let payload: EncryptedInputPayload = EncryptedInputPayload {
             acl: hex::encode(encrypted_data.acl_data),
             encrypted_secrets: hex::encode(encrypted_data.encrypted_data),
             me_decryption_url: "http://13.201.131.193:3000/decryptRequest".into(),
