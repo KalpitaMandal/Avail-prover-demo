@@ -30,11 +30,13 @@ kalypso_helper = { git = "https://github.com/marlinprotocol/kalypso-unified.git"
 kalypso_ivs_models = { git = "https://github.com/marlinprotocol/kalypso-unified.git", branch = "master", package = "ivs" }
 kalypso_generator_models = { git = "https://github.com/marlinprotocol/kalypso-unified.git", branch = "master", package = "generator" }
 bindings = { git = "https://github.com/marlinprotocol/kalypso-unified.git", branch = "master", package = "foundry-contracts" }
+kalypso_matching_engine_models = { git = "https://github.com/marlinprotocol/kalypso-unified.git", branch = "master", package = "matching_engine" }
 
 # kalypso_helper = { path = "../kalypso-unified/helper", package = "helper" }
 # kalypso_ivs_models = { path = "../kalypso-unified/ivs", package = "ivs" }
 # kalypso_generator_models = { path = "../kalypso-unified/generator", package = "generator" }
 # bindings = { path = "../kalypso-unified/bindings", package = "foundry-contracts" }
+# kalypso_matching_engine_models = { path = "../kalypso-unified/matching_engine", package = "matching_engine" }
 
 [dev-dependencies]
 actix-rt = "2"

@@ -9,7 +9,6 @@ use ethers::{
     signers::{LocalWallet, Signer, Wallet},
 };
 use kalypso_helper::response::response;
-use serde::{Deserialize, Serialize};
 use serde_json::{Error, Value};
 use snarkvm_synthesizer::Authorization;
 use std::{fs, str::FromStr};
@@ -193,15 +192,6 @@ async fn get_attestation_for_invalid_inputs(
 async fn check_encrypted_input(
     payload: web::Json<kalypso_ivs_models::models::EncryptedInputPayload>,
 ) -> impl Responder {
-    #[derive(Deserialize, Serialize)]
-    pub struct DecryptRequest {
-        market_id: String,
-        private_input: String,
-        acl: String,
-        signature: String,
-        ivs_pubkey: String,
-    }
-
     let payload = payload.0;
     let (signature, ivs_pub_key) = {
         let message = &payload.market_id;
@@ -216,7 +206,7 @@ async fn check_encrypted_input(
             .expect("Failed signing market id for check encrypted inputs");
         (signature.to_string(), modified_secp_pub_key)
     };
-    let decrypt_request_payload = DecryptRequest {
+    let decrypt_request_payload = kalypso_matching_engine_models::models::DecryptRequest {
         market_id: payload.market_id,
         private_input: payload.encrypted_secrets,
         acl: payload.acl,
@@ -233,22 +223,18 @@ async fn check_encrypted_input(
         .unwrap();
 
     if api_response.status().is_success() {
-        #[derive(Deserialize, Debug)]
-        pub struct GetRequestResponse {
-            encrypted_data: String,
-        }
-
-        let response_payload: GetRequestResponse = match api_response.json().await {
-            Ok(data) => data,
-            Err(err) => {
-                dbg!(err);
-                return response(
-                    "Unable to get response from matching engine",
-                    StatusCode::EXPECTATION_FAILED,
-                    None,
-                );
-            }
-        };
+        let response_payload: kalypso_matching_engine_models::models::GetRequestResponse =
+            match api_response.json().await {
+                Ok(data) => data,
+                Err(err) => {
+                    dbg!(err);
+                    return response(
+                        "Unable to get response from matching engine",
+                        StatusCode::EXPECTATION_FAILED,
+                        None,
+                    );
+                }
+            };
 
         let encrypted_data = hex::decode(response_payload.encrypted_data).unwrap();
         let decrypted_data = kalypso_helper::secret_inputs_helpers::decrypt_ecies(
