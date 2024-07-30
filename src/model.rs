@@ -16,7 +16,6 @@ pub struct ProveAuthInputs {
 
 #[derive(Serialize, Debug, Deserialize, Clone)]
 pub struct InputPayload {
-    pub network: u16,
     pub secrets: Option<String>,
 }
 
@@ -25,14 +24,12 @@ pub struct EncryptedInputPayload {
     pub acl: String,
     pub encrypted_secrets: String,
     pub me_decryption_url: String,
-    pub network: u16,
     pub market_id: String,
 }
 
 #[derive(Serialize, Debug, Deserialize, Clone)]
 pub struct AskPayload {
     pub ask: Ask,
-    pub network: u16,
     pub encrypted_secret: String,
     pub acl: String,
     pub ask_id: u64,
@@ -40,7 +37,6 @@ pub struct AskPayload {
 
 #[derive(Serialize, Debug, Deserialize, Clone)]
 pub struct VerifyProofPayload {
-    pub network: u16,
     pub execution: Option<String>,
 }
 
