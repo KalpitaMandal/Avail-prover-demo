@@ -22,6 +22,7 @@ hex = "0.4"
 aes-gcm = "0.10.3"
 ecies = { version = "0.2.7", features = ["std"] }
 ethers ={version = "2.0.10", features = ["abigen", "ws", "rustls"] }
+async-trait = "0.1.81"
 reqwest = { version = "0.12.5", features = ["json"]}
 snarkvm = { features = [], git = "https://github.com/AleoNet/snarkVM", rev = "d170a9f", optional = true }
 
