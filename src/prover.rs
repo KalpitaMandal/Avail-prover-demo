@@ -1,8 +1,4 @@
 use crate::model;
-// use aleo_rust::{
-//     snarkvm_types::{Process, Program, Testnet3},
-//     AleoV0, BlockMemory, BlockStore, Execution, Locator, Query,
-// };
 use serde::{Deserialize, Serialize};
 use ethers::signers::{LocalWallet, Signer};
 use ethers::types::Bytes;
@@ -15,7 +11,6 @@ use snarkvm::{
     ledger::store::BlockStore,
     prelude::{Authorization, Execution, Locator, MainnetV0, Process, Program, TestnetV0},
 };
-// use snarkvm_synthesizer::Authorization;
 use std::{fs, str::FromStr, time::Instant};
 
 pub struct GenerateProofResponse {
@@ -117,7 +112,7 @@ pub fn prove_benchmark(
 }
 
 pub async fn prove_auth_mainnet(
-    payload: model::ProveAuthInputs,
+    payload: kalypso_generator_models::models::AskInputPayload,
 ) -> Result<GenerateProofResponse, model::InputError> {
     let rng = &mut thread_rng();
     type CurrentNetwork = MainnetV0;
@@ -275,7 +270,7 @@ pub async fn prove_auth_mainnet(
 }
 
 pub async fn prove_auth_testnet(
-    payload: model::ProveAuthInputs,
+    payload: kalypso_generator_models::models::AskInputPayload,
 ) -> Result<GenerateProofResponse, model::InputError> {
     let rng = &mut thread_rng();
     type CurrentNetwork = TestnetV0;

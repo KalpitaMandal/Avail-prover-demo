@@ -1,8 +1,6 @@
 mod handler;
 mod model;
 mod prover;
-mod response;
-mod secret_inputs_helpers;
 
 use actix_web::{App, HttpServer};
 use dotenv::dotenv;
@@ -33,10 +31,13 @@ async fn main() -> std::io::Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{handler, model, secret_inputs_helpers};
+    use crate::handler;
     use actix_web::{test, App};
     use bindings::shared_types::Ask;
+    use kalypso_generator_models::models::AskInputPayload;
+    use kalypso_ivs_models::models::{AskPayload, EncryptedInputPayload, InputPayload};
     use log::warn;
+    use serde::{Deserialize, Serialize};
     use serde_json::{json, Value};
     use tokio::fs;
 
@@ -52,7 +53,7 @@ mod tests {
         let result_json: Value = serde_json::from_slice(&result).unwrap();
         let expected_json = json!({
             "message": "The Avail prover is running!!",
-            "data": null
+            "data": "Avail Prover is running!"
         });
 
         assert_eq!(result_json, expected_json);
@@ -90,7 +91,7 @@ mod tests {
             prover_data: [123, 10, 32, 32, 32, 32, 34, 110, 101, 116, 119, 111, 114, 107, 34, 58, 32, 34, 49, 117, 49, 54, 34, 10, 125].into(),
         };
 
-        let payload: model::ProveAuthInputs = model::ProveAuthInputs {
+        let payload: AskInputPayload = AskInputPayload {
             ask,
             private_input,
             ask_id: 1,
@@ -110,7 +111,8 @@ mod tests {
         let app = test::init_service(App::new().service(handler::check_input_handler)).await;
 
         let secrets = fs::read_to_string("./app/checkInput.txt").await.unwrap();
-        let payload = model::InputPayload {
+        let payload = InputPayload {
+            public: "".into(),
             secrets: Some(secrets),
         };
 
@@ -138,7 +140,8 @@ mod tests {
         let app = test::init_service(App::new().service(handler::check_input_handler)).await;
 
         let secrets = "this is an invalid input".into();
-        let payload = model::InputPayload {
+        let payload = InputPayload {
+            public: "".into(),
             secrets: Some(secrets),
         };
 
@@ -163,15 +166,18 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_check_input_with_signature() {
-        let app = test::init_service(App::new().service(handler::check_input_with_signature)).await;
+        let app =
+            test::init_service(App::new().service(handler::get_attestation_for_invalid_inputs))
+                .await;
         let data_to_encrypt = fs::read("./app/checkInput.txt").await.unwrap();
         // bit un-intutive, but rn this seems only way to test
         let receiver_pub_key = fs::read("./app/secp.pub").await.unwrap();
-        let encrypted_data = secret_inputs_helpers::encrypt_data_with_ecies_and_aes(
-            &receiver_pub_key,
-            &data_to_encrypt,
-        )
-        .unwrap();
+        let encrypted_data =
+            kalypso_helper::secret_inputs_helpers::encrypt_data_with_ecies_and_aes(
+                &receiver_pub_key,
+                &data_to_encrypt,
+            )
+            .unwrap();
 
         let ask: Ask = Ask {
             market_id: 1.into(),
@@ -182,7 +188,7 @@ mod tests {
             refund_address: "0000dead0000dead0000dead0000dead0000dead".parse().unwrap(),
             prover_data: [1, 2, 3, 4].into(),
         };
-        let ask_payload = model::AskPayload {
+        let ask_payload = AskPayload {
             ask_id: 1,
             ask,
             encrypted_secret: hex::encode(encrypted_data.encrypted_data),
@@ -209,15 +215,18 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_check_wrong_input_with_signature() {
-        let app = test::init_service(App::new().service(handler::check_input_with_signature)).await;
+        let app =
+            test::init_service(App::new().service(handler::get_attestation_for_invalid_inputs))
+                .await;
         let data_to_encrypt = vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 1, 2, 3, 4, 5]; // these are invalid inputs
                                                                               // bit un-intutive, but rn this seems only way to test
         let receiver_pub_key = fs::read("./app/secp.pub").await.unwrap();
-        let encrypted_data = secret_inputs_helpers::encrypt_data_with_ecies_and_aes(
-            &receiver_pub_key,
-            &data_to_encrypt,
-        )
-        .unwrap();
+        let encrypted_data =
+            kalypso_helper::secret_inputs_helpers::encrypt_data_with_ecies_and_aes(
+                &receiver_pub_key,
+                &data_to_encrypt,
+            )
+            .unwrap();
 
         let ask: Ask = Ask {
             market_id: 1.into(),
@@ -228,7 +237,7 @@ mod tests {
             refund_address: "0000dead0000dead0000dead0000dead0000dead".parse().unwrap(),
             prover_data: [1, 2, 3, 4].into(),
         };
-        let ask_payload = model::AskPayload {
+        let ask_payload = AskPayload {
             ask_id: 1,
             ask,
             encrypted_secret: hex::encode(encrypted_data.encrypted_data),
@@ -260,19 +269,20 @@ mod tests {
         let app = test::init_service(App::new().service(handler::check_encrypted_input)).await;
         let data_to_encrypt = fs::read("./app/checkInput.txt").await.unwrap();
 
-        warn!("Matching Engine IP hardcoded, it should be fetched from somewhere else");
+        let matching_engine_pubkey =
+            hex::decode(fetch_me_pub_key().await.expect("Failed fetching me pubkey"))
+                .expect("is valid ecies pubkey");
+        let encrypted_data =
+            kalypso_helper::secret_inputs_helpers::encrypt_data_with_ecies_and_aes(
+                &matching_engine_pubkey,
+                &data_to_encrypt,
+            )
+            .expect("Unable to encrypt the data");
 
-        let matching_engine_pubkey = hex::decode("5d45843db252f88bcf78ec4c602fa03c880c1f77e9a726e8428c2d0f92bd97c8da0ee6b1d96f9227b2f7c002ae86543f6f40799c880c740e04683cb863571d2d").expect("is valid ecies pubkey");
-        let encrypted_data = secret_inputs_helpers::encrypt_data_with_ecies_and_aes(
-            &matching_engine_pubkey,
-            &data_to_encrypt,
-        )
-        .expect("Unable to encrypt the data");
-
-        let payload: model::EncryptedInputPayload = model::EncryptedInputPayload {
+        let payload: EncryptedInputPayload = EncryptedInputPayload {
             acl: hex::encode(encrypted_data.acl_data),
             encrypted_secrets: hex::encode(encrypted_data.encrypted_data),
-            me_decryption_url: "http://localhost:3000/decryptRequest".into(),
+            me_decryption_url: "http://13.201.131.193:3000/decryptRequest".into(),
             market_id: "19".into(),
         };
 
@@ -302,17 +312,20 @@ mod tests {
 
         warn!("Matching Engine IP hardcoded, it should be fetched from somewhere else");
 
-        let matching_engine_pubkey = hex::decode("5d45843db252f88bcf78ec4c602fa03c880c1f77e9a726e8428c2d0f92bd97c8da0ee6b1d96f9227b2f7c002ae86543f6f40799c880c740e04683cb863571d2d").expect("is valid ecies pubkey");
-        let encrypted_data = secret_inputs_helpers::encrypt_data_with_ecies_and_aes(
-            &matching_engine_pubkey,
-            &data_to_encrypt,
-        )
-        .unwrap();
+        let matching_engine_pubkey =
+            hex::decode(fetch_me_pub_key().await.expect("Failed fetching me pubkey"))
+                .expect("is valid ecies pubkey");
+        let encrypted_data =
+            kalypso_helper::secret_inputs_helpers::encrypt_data_with_ecies_and_aes(
+                &matching_engine_pubkey,
+                &data_to_encrypt,
+            )
+            .unwrap();
 
-        let payload: model::EncryptedInputPayload = model::EncryptedInputPayload {
+        let payload: EncryptedInputPayload = EncryptedInputPayload {
             acl: hex::encode(encrypted_data.acl_data),
             encrypted_secrets: hex::encode(encrypted_data.encrypted_data),
-            me_decryption_url: "http://localhost:3000/decryptRequest".into(),
+            me_decryption_url: "http://13.201.131.193:3000/decryptRequest".into(),
             market_id: "19".into(),
         };
 
@@ -332,5 +345,42 @@ mod tests {
             "data": null
         });
         assert_eq!(result_json, expected_json);
+    }
+
+    async fn fetch_me_pub_key() -> Result<String, Box<dyn std::error::Error>> {
+        warn!("Fetching ME publickey dynamically using matching engine client");
+
+        let url = "http://13.201.131.193:5000/api/getMatchingEnginePublicKeys";
+
+        let response = reqwest::get(url).await?;
+
+        #[derive(Serialize, Debug, Deserialize)]
+        pub struct MatchingEnginePublicKeys {
+            pub matching_engine_public_key: String,
+            pub matching_engine_ecies_public_key: String,
+        }
+
+        #[derive(Serialize, Deserialize, Debug)]
+        struct JsonResponse {
+            status: String,
+            message: String,
+            data: Option<MatchingEnginePublicKeys>,
+        }
+
+        if response.status().is_success() {
+            let json_response: JsonResponse = response.json().await?;
+
+            if let Some(data) = json_response.data {
+                let pub_key_stripped = data
+                    .matching_engine_ecies_public_key
+                    .strip_prefix("0x")
+                    .unwrap_or(&data.matching_engine_ecies_public_key);
+                Ok(pub_key_stripped.to_string())
+            } else {
+                Err("Missing data in response".into())
+            }
+        } else {
+            Err("Failed fetching ME keys".into())
+        }
     }
 }

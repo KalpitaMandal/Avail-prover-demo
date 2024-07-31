@@ -1,26 +1,25 @@
+use crate::{
+    model::{self},
+    prover,
+};
 use actix_web::{get, http::StatusCode, post, web, HttpResponse, Responder};
 use snarkvm::prelude::{Authorization, Execution, MainnetV0, TestnetV0};
-// use aleo_rust::{Execution, Testnet3};
-// use snarkvm_synthesizer::Authorization;
 use ethers::{
     core::k256::ecdsa::SigningKey,
     signers::{LocalWallet, Signer, Wallet},
 };
-use serde::{Deserialize, Serialize};
+use kalypso_helper::response::response;
 use serde_json::{Error, Value};
 use std::{fs, str::FromStr};
-
-use crate::{
-    model::{self, AskPayload},
-    prover,
-    response::response,
-    secret_inputs_helpers,
-};
 
 // Get generator status from the supervisord
 #[get("/test")]
 async fn test() -> impl Responder {
-    response("The Avail prover is running!!", StatusCode::OK, None)
+    response(
+        "The Avail prover is running!!",
+        StatusCode::OK,
+        Some("Avail Prover is running!".into()),
+    )
 }
 
 #[get("/benchmark")]
@@ -71,7 +70,9 @@ async fn benchmark() -> impl Responder {
 }
 
 #[post("/generateProof")]
-async fn generate_proof(payload: web::Json<model::ProveAuthInputs>) -> impl Responder {
+async fn generate_proof(
+    payload: web::Json<kalypso_generator_models::models::AskInputPayload>,
+) -> impl Responder {
     log::info!(
         "Request received by the avail prover for ask ID : {}",
         payload.0.ask_id
@@ -131,9 +132,16 @@ async fn generate_proof(payload: web::Json<model::ProveAuthInputs>) -> impl Resp
 }
 
 #[post("/checkInput")]
-async fn check_input_handler(payload: web::Json<model::InputPayload>) -> impl Responder {
+async fn check_input_handler(
+    payload: web::Json<kalypso_ivs_models::models::InputPayload>,
+) -> impl Responder {
     let private_input = payload.clone().secrets.unwrap();
-    let auth_value: Value = serde_json::from_str(&private_input).unwrap();
+    let auth_value: Value = match serde_json::from_str(&private_input) {
+        Ok(data) => data,
+        Err(_) => {
+            return response("Invalid Authorization", StatusCode::BAD_REQUEST, None);
+        }
+    };
     let network = &auth_value["network"];
     let auth = &auth_value["auth"];
 
@@ -151,13 +159,15 @@ async fn check_input_handler(payload: web::Json<model::InputPayload>) -> impl Re
 }
 
 #[post("/getAttestationForInvalidInputs")]
-async fn check_input_with_signature(payload: web::Json<model::AskPayload>) -> impl Responder {
+async fn get_attestation_for_invalid_inputs(
+    payload: web::Json<kalypso_ivs_models::models::AskPayload>,
+) -> impl Responder {
     let encrypted_input = payload.clone().encrypted_secret;
     let private_input = hex::decode(encrypted_input).unwrap();
     let acl = hex::decode(payload.clone().acl).unwrap();
     let market_id = payload.clone().ask.market_id;
 
-    let secret_input = match secret_inputs_helpers::decrypt_data_with_ecies_and_aes(
+    let secret_input = match kalypso_helper::secret_inputs_helpers::decrypt_data_with_ecies_and_aes(
         &private_input,
         &acl,
         &get_secp_private_key(),
@@ -214,16 +224,9 @@ async fn check_input_with_signature(payload: web::Json<model::AskPayload>) -> im
 }
 
 #[post("/checkEncryptedInputs")]
-async fn check_encrypted_input(payload: web::Json<model::EncryptedInputPayload>) -> impl Responder {
-    #[derive(Deserialize, Serialize)]
-    pub struct DecryptRequest {
-        market_id: String,
-        private_input: String,
-        acl: String,
-        signature: String,
-        ivs_pubkey: String,
-    }
-
+async fn check_encrypted_input(
+    payload: web::Json<kalypso_ivs_models::models::EncryptedInputPayload>,
+) -> impl Responder {
     let payload = payload.0;
     let (signature, ivs_pub_key) = {
         let message = &payload.market_id;
@@ -238,7 +241,7 @@ async fn check_encrypted_input(payload: web::Json<model::EncryptedInputPayload>)
             .expect("Failed signing market id for check encrypted inputs");
         (signature.to_string(), modified_secp_pub_key)
     };
-    let decrypt_request_payload = DecryptRequest {
+    let decrypt_request_payload = kalypso_matching_engine_models::models::DecryptRequest {
         market_id: payload.market_id,
         private_input: payload.encrypted_secrets,
         acl: payload.acl,
@@ -255,26 +258,25 @@ async fn check_encrypted_input(payload: web::Json<model::EncryptedInputPayload>)
         .unwrap();
 
     if api_response.status().is_success() {
-        #[derive(Deserialize, Debug)]
-        pub struct GetRequestResponse {
-            encrypted_data: String,
-        }
-
-        let response_payload: GetRequestResponse = match api_response.json().await {
-            Ok(data) => data,
-            Err(err) => {
-                dbg!(err);
-                return response(
-                    "Unable to get response from matching engine",
-                    StatusCode::EXPECTATION_FAILED,
-                    None,
-                );
-            }
-        };
+        let response_payload: kalypso_matching_engine_models::models::GetRequestResponse =
+            match api_response.json().await {
+                Ok(data) => data,
+                Err(err) => {
+                    dbg!(err);
+                    return response(
+                        "Unable to get response from matching engine",
+                        StatusCode::EXPECTATION_FAILED,
+                        None,
+                    );
+                }
+            };
 
         let encrypted_data = hex::decode(response_payload.encrypted_data).unwrap();
-        let decrypted_data =
-            secret_inputs_helpers::decrypt_ecies(&get_secp_private_key(), &encrypted_data).unwrap();
+        let decrypted_data = kalypso_helper::secret_inputs_helpers::decrypt_ecies(
+            &get_secp_private_key(),
+            &encrypted_data,
+        )
+        .unwrap();
 
         let decrypted_secret = String::from_utf8(decrypted_data).unwrap();
         let auth_value: Value = match serde_json::from_str(&decrypted_secret) {
@@ -314,8 +316,10 @@ async fn check_encrypted_input(payload: web::Json<model::EncryptedInputPayload>)
 }
 
 #[post("/verifyInputsAndProof")]
-async fn verify_inputs_and_proof(payload: web::Json<model::VerifyProofPayload>) -> impl Responder {
-    let private_input = payload.clone().execution.unwrap();
+async fn verify_inputs_and_proof(
+    payload: web::Json<kalypso_ivs_models::models::VerifyInputsAndProof>,
+) -> impl Responder {
+    let private_input = payload.clone().private_input;
     let auth_value: Value = serde_json::from_str(&private_input).unwrap();
     let network = &auth_value["network"];
     let execution = &auth_value["execution"];
@@ -376,14 +380,14 @@ pub fn routes(conf: &mut web::ServiceConfig) {
         .service(benchmark)
         .service(generate_proof)
         .service(check_input_handler)
-        .service(check_input_with_signature)
+        .service(get_attestation_for_invalid_inputs)
         .service(check_encrypted_input)
         .service(verify_inputs_and_proof);
     conf.service(scope);
 }
 
 async fn generate_invalid_input_attestation(
-    payload: AskPayload,
+    payload: kalypso_ivs_models::models::AskPayload,
     signer_wallet: Wallet<SigningKey>,
 ) -> String {
     let ask_id = payload.ask_id;
@@ -416,7 +420,7 @@ fn get_secp_private_key() -> Vec<u8> {
 
 async fn check_authorization_testnet(
     authorization_structure: Result<Authorization<TestnetV0>, Error>,
-    ask_payload: Option<AskPayload>,
+    ask_payload: Option<kalypso_ivs_models::models::AskPayload>,
     signer_wallet: Option<Wallet<SigningKey>>,
 ) -> HttpResponse {
     match authorization_structure {
@@ -455,7 +459,7 @@ async fn check_authorization_testnet(
 
 async fn check_authorization_mainnet(
     authorization_structure: Result<Authorization<MainnetV0>, Error>,
-    ask_payload: Option<AskPayload>,
+    ask_payload: Option<kalypso_ivs_models::models::AskPayload>,
     signer_wallet: Option<Wallet<SigningKey>>,
 ) -> HttpResponse {
     match authorization_structure {

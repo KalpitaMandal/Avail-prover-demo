@@ -7,7 +7,6 @@ edition = "2021"
 
 [dependencies]
 actix-web = "4.5.1"
-bindings = { path = "./bindings", package = "foundry-contracts" }
 tokio = { version = "1", features = ["full"] }
 openssl = { version = "0.10", features = ["vendored"] }
 serde = { version = "1.0", features = ["derive"] }
@@ -28,6 +27,17 @@ snarkvm-synthesizer = "0.16.19"
 snarkvm = { features = [], git = "https://github.com/AleoNet/snarkVM", rev = "d170a9f", optional = true }
 aleo-rust = "0.6.8"
 
+kalypso_helper = { git = "https://github.com/marlinprotocol/kalypso-unified.git", branch = "master", package = "helper" }
+kalypso_ivs_models = { git = "https://github.com/marlinprotocol/kalypso-unified.git", branch = "master", package = "ivs" }
+kalypso_generator_models = { git = "https://github.com/marlinprotocol/kalypso-unified.git", branch = "master", package = "generator" }
+bindings = { git = "https://github.com/marlinprotocol/kalypso-unified.git", branch = "master", package = "foundry-contracts" }
+kalypso_matching_engine_models = { git = "https://github.com/marlinprotocol/kalypso-unified.git", branch = "master", package = "matching_engine" }
+
+# kalypso_helper = { path = "../kalypso-unified/helper", package = "helper" }
+# kalypso_ivs_models = { path = "../kalypso-unified/ivs", package = "ivs" }
+# kalypso_generator_models = { path = "../kalypso-unified/generator", package = "generator" }
+# bindings = { path = "../kalypso-unified/bindings", package = "foundry-contracts" }
+# kalypso_matching_engine_models = { path = "../kalypso-unified/matching_engine", package = "matching_engine" }
 
 [dev-dependencies]
 actix-rt = "2"
