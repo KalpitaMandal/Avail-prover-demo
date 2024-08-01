@@ -86,7 +86,7 @@ async fn generate_proof(
     } else if network.contains("0u16") {
         prove_result = prover::prove_auth_mainnet(payload.0).await;
     } else {
-        return response("Invalid Network", StatusCode::BAD_REQUEST, None);
+        return response("Network not implemented", StatusCode::BAD_REQUEST, None);
     }
 
     match prove_result {
@@ -103,27 +103,33 @@ async fn generate_proof(
                 ];
                 let encoded = ethers::abi::encode(&value);
                 let encoded_bytes: ethers::types::Bytes = encoded.into();
-                Ok(response(
+                return response(
                     "Proof generated",
                     StatusCode::OK,
                     Some(Value::String(encoded_bytes.to_string())),
-                ))
+                )
             } else if prove.execution.is_none() && prove.signature.is_some() {
                 let signature = prove.signature.unwrap();
-                return Ok(response(
+                return response(
                     "Invalid inputs received, signature generated",
                     StatusCode::BAD_REQUEST,
                     Some(Value::String(signature)),
-                ));
+                );
             } else {
-                return Ok(response(
+                return response(
                     "There was an issue while generating the proof.",
                     StatusCode::INTERNAL_SERVER_ERROR,
                     None,
-                ));
+                );
             }
         }
-        Err(e) => Err(e),
+        Err(_) => {
+            return response(
+                "There was an issue while executing the authorization.",
+                StatusCode::INTERNAL_SERVER_ERROR,
+                None,
+            );
+        },
     }
 }
 
