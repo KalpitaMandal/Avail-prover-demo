@@ -447,7 +447,7 @@ fn get_signer() -> Wallet<SigningKey> {
 }
 
 fn get_secp_private_key() -> Vec<u8> {
-    fs::read("./app/secp.sec").unwrap()
+    fs::read("/app/secp.sec").unwrap()
 }
 
 async fn check_authorization_testnet(
