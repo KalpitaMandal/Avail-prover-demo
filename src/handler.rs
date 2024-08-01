@@ -86,7 +86,8 @@ async fn generate_proof(
     } else if network.contains("0u16") {
         prove_result = prover::prove_auth_mainnet(payload.0).await;
     } else {
-        return response("Network not implemented", StatusCode::BAD_REQUEST, None);
+        return HttpResponse::BadRequest().body("Network not implemented");
+        // return response("Network not implemented", StatusCode::BAD_REQUEST, None);
     }
 
     match prove_result {
