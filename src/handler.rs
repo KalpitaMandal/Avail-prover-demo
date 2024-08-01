@@ -3,13 +3,13 @@ use crate::{
     prover,
 };
 use actix_web::{get, http::StatusCode, post, web, HttpResponse, Responder};
-use snarkvm::prelude::{Authorization, Execution, MainnetV0, TestnetV0};
 use ethers::{
     core::k256::ecdsa::SigningKey,
     signers::{LocalWallet, Signer, Wallet},
 };
 use kalypso_helper::response::response;
 use serde_json::{Error, Value};
+use snarkvm::prelude::{Authorization, Execution, MainnetV0, TestnetV0};
 use std::{fs, str::FromStr};
 
 // Get generator status from the supervisord
@@ -188,11 +188,8 @@ async fn get_attestation_for_invalid_inputs(
     let auth_value: Value = match serde_json::from_str(&decrypted_secret) {
         Ok(data) => data,
         Err(_) => {
-            return HttpResponse::Ok().json(generate_invalid_input_attestation(
-                payload.0,
-                signer_wallet,
-            )
-            .await);
+            return HttpResponse::Ok()
+                .json(generate_invalid_input_attestation(payload.0, signer_wallet).await);
             // return response(
             //     "Payload is NOT valid",
             //     StatusCode::OK,
@@ -287,11 +284,7 @@ async fn check_encrypted_input(
         let auth_value: Value = match serde_json::from_str(&decrypted_secret) {
             Ok(data) => data,
             Err(_) => {
-                return response(
-                    "Decrypted Data is not valid",
-                    StatusCode::BAD_REQUEST,
-                    None,
-                );
+                return response("Decrypted Data is not valid", StatusCode::BAD_REQUEST, None);
             }
         };
 
@@ -299,14 +292,12 @@ async fn check_encrypted_input(
         let auth = &auth_value["auth"];
 
         if network.to_string().contains("1u16") {
-            let authorization_structure: Result<Authorization<TestnetV0>, Error> = {
-                serde_json::from_value(auth.clone())
-            };
+            let authorization_structure: Result<Authorization<TestnetV0>, Error> =
+                { serde_json::from_value(auth.clone()) };
             check_authorization_testnet(authorization_structure, None, None).await
         } else if network.to_string().contains("0u16") {
-            let authorization_structure: Result<Authorization<MainnetV0>, Error> = {
-                serde_json::from_value(auth.clone())
-            };
+            let authorization_structure: Result<Authorization<MainnetV0>, Error> =
+                { serde_json::from_value(auth.clone()) };
             check_authorization_mainnet(authorization_structure, None, None).await
         } else {
             return response("Network not implemented", StatusCode::BAD_REQUEST, None);
@@ -329,7 +320,7 @@ async fn verify_inputs_and_proof(
     let network = &auth_value["network"];
     let execution = &auth_value["execution"];
 
-    if network.to_string().contains("1u16")  {
+    if network.to_string().contains("1u16") {
         let execution_structure: Result<Execution<TestnetV0>, Error> =
             serde_json::from_value(execution.clone());
 
@@ -339,14 +330,14 @@ async fn verify_inputs_and_proof(
                     prover::verify_execution_proof_testnet(exec).await.unwrap();
                 if verification_result {
                     let data = kalypso_ivs_models::models::VerifyInputAndProofResponse {
-                        is_input_and_proof_valid: true
+                        is_input_and_proof_valid: true,
                     };
                     return HttpResponse::Ok().json(data);
                     // let data_string = serde_json::to_string(&data).unwrap();
                     // return response("Generated proof is valid", StatusCode::OK, Some(serde_json::Value::String(data_string)));
                 } else {
                     let data = kalypso_ivs_models::models::VerifyInputAndProofResponse {
-                        is_input_and_proof_valid: false
+                        is_input_and_proof_valid: false,
                     };
                     return HttpResponse::Ok().json(data);
                     // let data_string = serde_json::to_string(&data).unwrap();
@@ -371,14 +362,14 @@ async fn verify_inputs_and_proof(
                     prover::verify_execution_proof_mainnet(exec).await.unwrap();
                 if verification_result {
                     let data = kalypso_ivs_models::models::VerifyInputAndProofResponse {
-                        is_input_and_proof_valid: true
+                        is_input_and_proof_valid: true,
                     };
                     return HttpResponse::Ok().json(data);
                     // let data_string = serde_json::to_string(&data).unwrap();
                     // return response("Generated proof is valid", StatusCode::OK, Some(serde_json::Value::String(data_string)));
                 } else {
                     let data = kalypso_ivs_models::models::VerifyInputAndProofResponse {
-                        is_input_and_proof_valid: false
+                        is_input_and_proof_valid: false,
                     };
                     return HttpResponse::Ok().json(data);
                     // let data_string = serde_json::to_string(&data).unwrap();
@@ -430,7 +421,7 @@ async fn generate_invalid_input_attestation(
 
     let response = kalypso_ivs_models::models::InvalidInputsAttestationResponse {
         signature: signature.to_string(),
-        ask_id
+        ask_id,
     };
 
     return response;
@@ -461,11 +452,13 @@ async fn check_authorization_testnet(
 
             if is_auth_empty {
                 if ask_payload.is_some() && signer_wallet.is_some() {
-                    return HttpResponse::Ok().json(generate_invalid_input_attestation(
-                                    ask_payload.unwrap(),
-                                    signer_wallet.unwrap(),
-                                )
-                                .await);
+                    return HttpResponse::Ok().json(
+                        generate_invalid_input_attestation(
+                            ask_payload.unwrap(),
+                            signer_wallet.unwrap(),
+                        )
+                        .await,
+                    );
                     // return response(
                     //     "Payload is NOT valid",
                     //     StatusCode::OK,
@@ -479,7 +472,7 @@ async fn check_authorization_testnet(
                     // );
                 } else {
                     let data = kalypso_ivs_models::models::SimpleCheckInputResponse {
-                        is_input_valid: false
+                        is_input_valid: false,
                     };
                     return HttpResponse::Ok().json(data);
                     // let data_string = serde_json::to_string(&data).unwrap();
@@ -489,12 +482,12 @@ async fn check_authorization_testnet(
                 if ask_payload.is_some() && signer_wallet.is_some() {
                     let data = kalypso_ivs_models::models::InvalidInputsAttestationResponse {
                         signature: " ".to_string(),
-                        ask_id: ask_payload.unwrap().ask_id
+                        ask_id: ask_payload.unwrap().ask_id,
                     };
                     return HttpResponse::Ok().json(data);
                 } else {
                     let data = kalypso_ivs_models::models::SimpleCheckInputResponse {
-                        is_input_valid: true
+                        is_input_valid: true,
                     };
                     return HttpResponse::Ok().json(data);
                     // let data_string = serde_json::to_string(&data).unwrap();
@@ -523,11 +516,13 @@ async fn check_authorization_mainnet(
 
             if is_auth_empty {
                 if ask_payload.is_some() && signer_wallet.is_some() {
-                    return HttpResponse::Ok().json(generate_invalid_input_attestation(
-                        ask_payload.unwrap(),
-                        signer_wallet.unwrap(),
-                    )
-                    .await);
+                    return HttpResponse::Ok().json(
+                        generate_invalid_input_attestation(
+                            ask_payload.unwrap(),
+                            signer_wallet.unwrap(),
+                        )
+                        .await,
+                    );
                     // return response(
                     //     "Payload is NOT valid",
                     //     StatusCode::OK,
@@ -541,7 +536,7 @@ async fn check_authorization_mainnet(
                     // );
                 } else {
                     let data = kalypso_ivs_models::models::SimpleCheckInputResponse {
-                        is_input_valid: false
+                        is_input_valid: false,
                     };
                     return HttpResponse::Ok().json(data);
                     // let data_string = serde_json::to_string(&data).unwrap();
@@ -551,12 +546,12 @@ async fn check_authorization_mainnet(
                 if ask_payload.is_some() && signer_wallet.is_some() {
                     let data = kalypso_ivs_models::models::InvalidInputsAttestationResponse {
                         signature: " ".to_string(),
-                        ask_id: ask_payload.unwrap().ask_id
+                        ask_id: ask_payload.unwrap().ask_id,
                     };
                     return HttpResponse::Ok().json(data);
                 } else {
                     let data = kalypso_ivs_models::models::SimpleCheckInputResponse {
-                        is_input_valid: true
+                        is_input_valid: true,
                     };
                     return HttpResponse::Ok().json(data);
                     // let data_string = serde_json::to_string(&data).unwrap();

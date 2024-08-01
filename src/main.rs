@@ -88,7 +88,11 @@ mod tests {
             time_taken_for_proof_generation: 1.into(),
             deadline: 1.into(),
             refund_address: "0000dead0000dead0000dead0000dead0000dead".parse().unwrap(),
-            prover_data: [123, 10, 32, 32, 32, 32, 34, 110, 101, 116, 119, 111, 114, 107, 34, 58, 32, 34, 49, 117, 49, 54, 34, 10, 125].into(),
+            prover_data: [
+                123, 10, 32, 32, 32, 32, 34, 110, 101, 116, 119, 111, 114, 107, 34, 58, 32, 34, 49,
+                117, 49, 54, 34, 10, 125,
+            ]
+            .into(),
         };
 
         let payload: AskInputPayload = AskInputPayload {
