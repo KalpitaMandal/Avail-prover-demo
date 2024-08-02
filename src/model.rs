@@ -15,6 +15,9 @@ pub enum InputError {
 
     #[display(fmt = "invalid inputs")]
     InvalidInputs,
+
+    #[display(fmt = "invalid network")]
+    InvalidNetwork,
 }
 
 impl error::ResponseError for InputError {
@@ -29,6 +32,7 @@ impl error::ResponseError for InputError {
             InputError::FileNotFound => StatusCode::NOT_FOUND,
             InputError::ExecutionFailed => StatusCode::NOT_IMPLEMENTED,
             InputError::InvalidInputs => StatusCode::BAD_REQUEST,
+            InputError::InvalidNetwork => StatusCode::NOT_IMPLEMENTED,
         }
     }
 }
